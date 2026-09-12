@@ -11,8 +11,9 @@ export function calculateAttributeTotals(owned: OwnedSeal[], sealData: Seal[]): 
   const byId = new Map(sealData.map(seal => [seal.id, seal]))
   for (const item of owned) {
     const seal = byId.get(item.sealId)
-    const level = levelFor(item.quantity)
-    if (seal && level) result[seal.attribute] += valueFor(seal, level.id)
+    if (!seal) continue
+    const level = levelFor(item.quantity, seal)
+    if (level) result[seal.attribute] += valueFor(seal, level.id)
   }
   return result
 }
