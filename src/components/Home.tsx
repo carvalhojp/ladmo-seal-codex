@@ -1,0 +1,9 @@
+import { BookOpen, Calculator, ChevronRight, Heart, SlidersHorizontal, Sparkles } from 'lucide-react'
+import type { OwnedSeal } from '../types'
+import { seals } from '../data/seals'
+import avatarUrl from '../assets-avatar.png'
+
+export function Home({ t, go, owned }: { t: any; go: (tab: any) => void; owned: OwnedSeal[] }) {
+  const Action = ({ icon, title, text, onClick }: { icon: React.ReactNode; title: string; text: string; onClick: () => void }) => <button className="action-card" onClick={onClick}><i>{icon}</i><h3>{title}</h3><p>{text}</p><ChevronRight size={18}/></button>
+  return <><section className="hero"><div><p className="eyebrow"><Sparkles size={15}/> Nadanerd Live • {t.communityToolkit}</p><h1>{t.homeTitle}</h1><p>{t.hero}</p><div className="hero-cta"><button className="primary" onClick={() => go('codex')}>{t.browse}<ChevronRight size={17}/></button><button className="quiet" onClick={() => go('learn')}>{t.learn}</button></div><div className="stats"><span><b>{seals.length}</b> {t.registeredSeals}</span><span><b>{owned.length}</b> {t.sealed}</span><span><b>3</b> {t.languages}</span></div></div><div className="hero-orb"><img src={avatarUrl}/><i></i><i></i></div></section><section className="action-grid"><Action icon={<BookOpen/>} title={t.codex} text={t.codexCard} onClick={() => go('codex')}/><Action icon={<Calculator/>} title={t.goal} text={t.goalText} onClick={() => go('goal')}/><Action icon={<SlidersHorizontal/>} title={t.optimizer} text={t.optimizerText} onClick={() => go('optimizer')}/><Action icon={<Heart/>} title={t.mine} text={t.mineCard} onClick={() => go('mine')}/></section><section className="home-banner"><div><span className="eyebrow">{t.start}</span><h2>{t.homeBanner}</h2></div><button className="quiet" onClick={() => go('learn')}>{t.learn}<ChevronRight size={17}/></button></section></>
+}

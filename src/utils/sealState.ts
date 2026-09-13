@@ -8,6 +8,8 @@ export interface SealUserState {
 
 export type SealStateMap = Record<string, SealUserState>
 export const sealStateKey = 'ladmo-seal-state-v2'
+const obsoleteDorugamonId = 'seal-22829'
+const canonicalDorugamonId = 'seal-19435'
 const emptyState = (): SealUserState => ({ quantity: 0, hasSeal: false, doNotRecommend: false })
 
 export function getSealState(states: SealStateMap, sealId: string): SealUserState {
@@ -30,10 +32,24 @@ export function migrateLegacyOwned(legacy: OwnedSeal[] | null): SealStateMap {
 export function readSealStates(storage: Pick<Storage, 'getItem'>): SealStateMap {
   try {
     const current = storage.getItem(sealStateKey)
-    if (current) return JSON.parse(current) as SealStateMap
+    if (current) return migrateDuplicateDorugamon(JSON.parse(current) as SealStateMap)
     const legacy = storage.getItem('ladmo-owned')
     return migrateLegacyOwned(legacy ? JSON.parse(legacy) as OwnedSeal[] : null)
   } catch { return {} }
+}
+
+/** Merges the removed duplicate into the retained canonical Dorugamon without losing local progress. */
+export function migrateDuplicateDorugamon(states: SealStateMap): SealStateMap {
+  const obsolete = states[obsoleteDorugamonId]
+  if (!obsolete) return states
+  const canonical = getSealState(states, canonicalDorugamonId)
+  const next: SealStateMap = { ...states, [canonicalDorugamonId]: {
+    quantity: Math.max(canonical.quantity, obsolete.quantity),
+    hasSeal: canonical.hasSeal || obsolete.hasSeal,
+    doNotRecommend: canonical.doNotRecommend || obsolete.doNotRecommend,
+  } }
+  delete next[obsoleteDorugamonId]
+  return next
 }
 
 export function toOwnedSeals(states: SealStateMap): OwnedSeal[] {

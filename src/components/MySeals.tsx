@@ -1,0 +1,10 @@
+import { useMemo } from 'react'
+import type { SealStateMap } from '../utils/sealState'
+import { getSealState } from '../utils/sealState'
+import { seals } from '../data/seals'
+import { formatValue, levelFor, maxSealsFor, nextLevel, valueFor } from '../utils/calculations'
+import { NumericInput } from './NumericInput'
+import { PageHead } from './PageHead'
+import { localizedSealName } from '../data/localizedSealNames'
+import type { Lang } from '../App'
+export function MySeals({t,lang,states,state,patchState}:{t:any,lang:Lang,states:SealStateMap,state:(id:string)=>ReturnType<typeof getSealState>,patchState:(id:string,patch:Partial<ReturnType<typeof getSealState>>)=>void}){const ownSeals=seals.filter(s=>{const value=states[s.id];return value?.hasSeal||value?.quantity>0});return <><PageHead eyebrow={t.mineEyebrow} title={t.mine} text={t.localOnlyText}/>{ownSeals.length?<div className="owned-list">{ownSeals.map(s=>{const user=state(s.id),n=user.quantity,next=nextLevel(n,s),current=levelFor(n,s);return <div className="owned-row" key={s.id}><span className={'attr '+s.attribute}>{s.attribute}</span><div><b>{localizedSealName(s,lang)}</b><small>{current?.label??t.noLevel} · {next?`${next.threshold-n} ${t.to} ${next.label}`:t.masterReached}</small></div><NumericInput value={n} min={0} max={maxSealsFor(s)} onValue={quantity=>patchState(s.id,{quantity,hasSeal:quantity>0||user.hasSeal})}/><strong>{formatValue(valueFor(s,current?.id??'normal'),s.attribute)}</strong><button className="quiet" onClick={()=>patchState(s.id,{hasSeal:false,quantity:0})}>{t.remove}</button></div>})}</div>:<div className="empty">{t.noOwnedSeals}</div>}</>}

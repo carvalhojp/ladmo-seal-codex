@@ -1,0 +1,2 @@
+import { PageHead } from './PageHead'
+export function Resources({t}:{t:any}){return <><PageHead eyebrow={t.resourcesEyebrow} title={t.optimizerTitle} text={t.optimizerText}/><section className="empty"><h2>{t.underDevelopment}</h2><p>{t.resourcesPaused}</p></section></>}

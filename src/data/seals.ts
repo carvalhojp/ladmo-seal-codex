@@ -57,7 +57,7 @@ export const seals: Seal[] = [
   },
   {
     "id": "seal-16537",
-    "name": "Renamon",
+    "name": "Lanamon",
     "attribute": "DS",
     "masterValue": 200,
     "ticketCost": 1,
@@ -1655,15 +1655,6 @@ export const seals: Seal[] = [
     "masterValue": 100,
     "ticketCost": 1,
     "sealsReceived": 10,
-    "maxSeals": 3000
-  },
-  {
-    "id": "seal-22829",
-    "name": "Dorugamon",
-    "attribute": "HT",
-    "masterValue": 200,
-    "ticketCost": 1,
-    "sealsReceived": 5,
     "maxSeals": 3000
   },
   {

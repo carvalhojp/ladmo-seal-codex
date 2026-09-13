@@ -1,0 +1,4 @@
+import { ExternalLink } from 'lucide-react'
+import avatarUrl from '../assets-avatar.png'
+import { PageHead } from './PageHead'
+export function About({t,reset}:{t:any,reset:()=>void}){return <><PageHead eyebrow="NADANERD LIVE" title={t.about} text={t.aboutText}/><section className="about"><img src={avatarUrl}/><div><h2>{t.communityTitle}</h2><p>{t.communityText}</p><p>{t.unofficialText}</p><div className="social"><a href="https://www.youtube.com/@nadanerdlive" target="_blank">YouTube <ExternalLink size={15}/></a><a href="https://www.twitch.tv/nadanerd" target="_blank">Twitch <ExternalLink size={15}/></a></div></div></section><section className="data-box"><h3>{t.localData}</h3><p>{t.localDataText}</p><button className="danger" onClick={reset}>{t.reset}</button></section></>}
