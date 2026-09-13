@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { translationGroups } from './App'
+import { goalPlannerRegistrationTab } from './components/GoalPlanner'
 
 const groups = translationGroups
 
@@ -10,5 +11,24 @@ describe('translation coverage', () => {
     expect(Object.keys(group.es).sort()).toEqual(expected)
     expect(Object.keys(group.ko).sort()).toEqual(expected)
     expect(Object.values(group.ko).every(Boolean)).toBe(true)
+  })
+
+  it('directs Goal Planner users to register Seals in Seal Codex in every language', () => {
+    const expected = {
+      pt: 'Cadastre primeiro no Seal Codex',
+      en: 'register the Seals you own and their quantities in Seal Codex',
+      es: 'registra en Seal Codex',
+      ko: 'Seal Codex에서 보유한 Seal과 수량을 등록하세요',
+    }
+    Object.entries(expected).forEach(([lang, text]) => {
+      const copy = translationGroups.uiCopy[lang as keyof typeof translationGroups.uiCopy]
+      expect(copy.goalTip).toContain(text)
+      expect(copy.goToMine).toContain('Seal Codex')
+      expect(copy.goalTip).not.toContain('Meus Selos')
+    })
+  })
+
+  it('keeps the Goal Planner CTA on the internal Seal Codex route', () => {
+    expect(goalPlannerRegistrationTab).toBe('codex')
   })
 })
