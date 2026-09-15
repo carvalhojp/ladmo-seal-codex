@@ -22,6 +22,17 @@ export function updateSealState(states: SealStateMap, sealId: string, patch: Par
   return { ...states, [sealId]: next }
 }
 
+/** Adds a Goal Planner recommendation without changing the exclusion preference. */
+export function addRecommendedQuantity(states: SealStateMap, sealId: string, additionalQuantity: number): SealStateMap {
+  const additional = Math.max(0, Number.isFinite(additionalQuantity) ? additionalQuantity : 0)
+  if (!additional) return states
+  const previous = getSealState(states, sealId)
+  return updateSealState(states, sealId, {
+    quantity: previous.quantity + additional,
+    hasSeal: true,
+  })
+}
+
 /** Preserves legacy inventory quantities while moving to per-seal versioned state. */
 export function migrateLegacyOwned(legacy: OwnedSeal[] | null): SealStateMap {
   return (legacy ?? []).reduce<SealStateMap>((states, item) => updateSealState(states, item.sealId, {

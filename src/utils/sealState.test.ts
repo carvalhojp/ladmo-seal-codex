@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { canConsiderEvolution, canRecommendAcquisition, getSealState, migrateLegacyOwned, readSealStates, sealStateKey, updateSealState } from './sealState'
+import { addRecommendedQuantity, canConsiderEvolution, canRecommendAcquisition, getSealState, migrateLegacyOwned, readSealStates, sealStateKey, toOwnedSeals, updateSealState } from './sealState'
+import { seals } from '../data/seals'
+import { calculateAttributeTotals } from './dashboard'
+import { optimizeGoal } from './goalOptimizer'
 
 describe('individual Seal state', () => {
   it('keeps different attributes independent', () => {
@@ -34,5 +37,31 @@ describe('individual Seal state', () => {
     const blocked = { quantity: 0, hasSeal: false, doNotRecommend: true }
     expect(canRecommendAcquisition(blocked)).toBe(false)
     expect(canConsiderEvolution(blocked)).toBe(false)
+  })
+
+  it('adds a recommendation by stable ID, marks it owned, and leaves other Seals untouched', () => {
+    const next = addRecommendedQuantity({}, 'seal-16709', 50)
+    expect(getSealState(next, 'seal-16709')).toEqual({ quantity: 50, hasSeal: true, doNotRecommend: false })
+    expect(getSealState(next, 'seal-16737')).toEqual({ quantity: 0, hasSeal: false, doNotRecommend: false })
+    expect(toOwnedSeals(next)).toEqual([{ sealId: 'seal-16709', quantity: 50 }])
+  })
+
+  it('adds to existing recommended progress without changing the do-not-recommend preference', () => {
+    const states = { 'seal-16709': { quantity: 200, hasSeal: true, doNotRecommend: true } }
+    expect(getSealState(addRecommendedQuantity(states, 'seal-16709', 300), 'seal-16709')).toEqual({ quantity: 500, hasSeal: true, doNotRecommend: true })
+  })
+
+  it('ignores a non-positive recommendation so a click cannot corrupt quantity', () => {
+    const states = { 'seal-16709': { quantity: 50, hasSeal: true, doNotRecommend: false } }
+    expect(addRecommendedQuantity(states, 'seal-16709', 0)).toBe(states)
+    expect(addRecommendedQuantity(states, 'seal-16709', Number.NaN)).toBe(states)
+  })
+
+  it('makes an added recommendation immediately available to dashboard and Goal Planner calculations', () => {
+    const devimon = seals.find(seal => seal.id === 'seal-16709')!
+    const states = addRecommendedQuantity({}, devimon.id, 50)
+    expect(calculateAttributeTotals(toOwnedSeals(states), seals).AT).toBeGreaterThan(0)
+    const plan = optimizeGoal('AT', 40, [devimon], { [devimon.id]: { quantity: 50 } }, 'cheap')
+    expect(plan?.recommendations[0].additionalSeals).toBe(150)
   })
 })

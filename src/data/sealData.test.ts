@@ -26,6 +26,12 @@ describe('corrected Seal data', () => {
     Object.entries(expected).forEach(([name,dungeon]) => expect(sourcesForName(name)).toContainEqual({type:'dungeon',dungeon}))
     expect(sourcesForName('Lucemon')).toContainEqual({type:'dungeon',dungeon:'Royal Base',reward:true})
   })
+  it('adds Examon to Dungeon — Royal Base without changing its Seal record', () => {
+    const examon = seals.find(seal => seal.name === 'Examon')
+    expect(examon).toMatchObject({ id:'seal-17773', attribute:'AT', masterValue:300, ticketCost:100, sealsReceived:1, maxSeals:3000 })
+    expect(sourcesForName('Examon')).toContainEqual({ type:'dungeon', dungeon:'Royal Base' })
+    expect(matchesAcquisitionFilter('Examon', 'dungeon')).toBe(true)
+  })
   it('keeps every requested Shinjuku coin cost', () => {
     const expected = {Renamon:20,Goblimon:20,Guilmon:20,Impmon:20,Gazimon:20,Mushroomon:20,Elecmon:20,Floramon:20,Growmon:40,Leomon:40,Monochromon:40,Woodmon:40,Rockmon:40,Chrysalimon:40,Meramon:40,Sinduramon:50,MetalTyranomon:50,Vajramon:150,Vikaralamon:150,Zhuqiaomon:200,Beelzebumon:200,Megidramon:200}
     Object.entries(expected).forEach(([name,coinsPerSeal]) => expect(sourcesForName(name)).toContainEqual({type:'shinjuku',coinsPerSeal}))

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { translationGroups } from './App'
 import { goalPlannerRegistrationTab } from './components/GoalPlanner'
+import { supportedLanguageCount } from './components/Home'
+import { updates } from './data/updates'
 
 const groups = translationGroups
 
@@ -30,5 +32,18 @@ describe('translation coverage', () => {
 
   it('keeps the Goal Planner CTA on the internal Seal Codex route', () => {
     expect(goalPlannerRegistrationTab).toBe('codex')
+  })
+
+  it('shows the four supported languages on Home in every translation', () => {
+    expect(supportedLanguageCount).toBe(4)
+    for (const language of ['pt', 'en', 'es', 'ko'] as const) expect(translationGroups.extraCopy[language].languages).toBeTruthy()
+  })
+
+  it('keeps the September 15 changelog ahead of September 13 in every language', () => {
+    expect(updates.map(update => update.date)).toEqual(['15/09/2026', '13/09/2026'])
+    for (const language of ['pt', 'en', 'es', 'ko'] as const) {
+      const copy = translationGroups.roundCopy[language]
+      expect(['updateFive', 'updateSix', 'updateSeven', 'updateEight'].every(key => Boolean(copy[key as keyof typeof copy]))).toBe(true)
+    }
   })
 })
