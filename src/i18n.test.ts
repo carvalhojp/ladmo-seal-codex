@@ -39,11 +39,15 @@ describe('translation coverage', () => {
     for (const language of ['pt', 'en', 'es', 'ko'] as const) expect(translationGroups.extraCopy[language].languages).toBeTruthy()
   })
 
-  it('keeps the September 15 changelog ahead of September 13 in every language', () => {
-    expect(updates.map(update => update.date)).toEqual(['15/09/2026', '13/09/2026'])
+  it('keeps the September 16 Buff Deck changelog ahead of the previous entries in every language', () => {
+    expect(updates.map(update => update.date)).toEqual(['16/09/2026', '15/09/2026', '13/09/2026'])
     for (const language of ['pt', 'en', 'es', 'ko'] as const) {
       const copy = translationGroups.roundCopy[language]
       expect(['updateFive', 'updateSix', 'updateSeven', 'updateEight'].every(key => Boolean(copy[key as keyof typeof copy]))).toBe(true)
+      expect(['updateNine', 'updateTen', 'updateEleven', 'updateTwelve'].every(key => Boolean(copy[key as keyof typeof copy]))).toBe(true)
+      expect(copy.updateNine).toMatch(/resources|recursos|자원이 있어요/i)
+      expect(copy.updateTen).toMatch(/Rank U/)
+      expect(copy.updateTwelve).toMatch(/SSS\+/)
     }
   })
 })
