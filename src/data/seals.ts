@@ -633,7 +633,7 @@ export const seals: Seal[] = [
   },
   {
     "id": "seal-18760",
-    "name": "Shamamon",
+    "name": "Sharmamon",
     "attribute": "CT",
     "masterValue": 150,
     "ticketCost": 1,
