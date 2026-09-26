@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { translationGroups } from './App'
 import { goalPlannerRegistrationTab } from './components/GoalPlanner'
-import { supportedLanguageCount } from './components/Home'
+import { dUnitConditionCount, dUnitSetCount, supportedLanguageCount } from './components/Home'
+import { dUnitSets } from './data/dUnitAudit'
 import { updates } from './data/updates'
 
 const groups = translationGroups
@@ -39,12 +40,23 @@ describe('translation coverage', () => {
     for (const language of ['pt', 'en', 'es', 'ko'] as const) expect(translationGroups.extraCopy[language].languages).toBeTruthy()
   })
 
-  it('keeps the September 16 Buff Deck changelog ahead of the previous entries in every language', () => {
-    expect(updates.map(update => update.date)).toEqual(['16/09/2026', '15/09/2026', '13/09/2026'])
+  it('derives the D-Unit Home totals from the registered set data', () => {
+    expect(dUnitSetCount).toBe(dUnitSets.length)
+    expect(dUnitConditionCount).toBe(dUnitSets.reduce((total,set)=>total+set.conditions.length,0))
+  })
+
+  it('keeps the D-Unit V1, September 18 D-Unit, and September 16 Buff Deck changelog entries ahead of the previous entries in every language', () => {
+    expect(updates.map(update => update.date)).toEqual(['26/09/2026', '18/09/2026', '16/09/2026', '15/09/2026', '13/09/2026'])
+    expect(updates.filter(update=>update.date==='26/09/2026')).toHaveLength(1)
+    expect(updates[0]).toMatchObject({titleKey:'dunitV1UpdateTitle',changes:['updateEighteen','updateNineteen','updateTwenty','updateTwentyOne']})
     for (const language of ['pt', 'en', 'es', 'ko'] as const) {
       const copy = translationGroups.roundCopy[language]
+      const dunitCopy = translationGroups.dunitUpdateCopy[language]
       expect(['updateFive', 'updateSix', 'updateSeven', 'updateEight'].every(key => Boolean(copy[key as keyof typeof copy]))).toBe(true)
       expect(['updateNine', 'updateTen', 'updateEleven', 'updateTwelve'].every(key => Boolean(copy[key as keyof typeof copy]))).toBe(true)
+      expect(['updateThirteen', 'updateFourteen', 'updateFifteen', 'updateSixteen', 'updateSeventeen'].every(key => Boolean(dunitCopy[key as keyof typeof dunitCopy]))).toBe(true)
+      expect(['updateEighteen', 'updateNineteen', 'updateTwenty', 'updateTwentyOne'].every(key => Boolean(dunitCopy[key as keyof typeof dunitCopy]))).toBe(true)
+      expect((dunitCopy as Record<string,string>).dunitV1UpdateTitle).toBeTruthy()
       expect(copy.updateNine).toMatch(/resources|recursos|자원이 있어요/i)
       expect(copy.updateTen).toMatch(/Rank U/)
       expect(copy.updateTwelve).toMatch(/SSS\+/)
