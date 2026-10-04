@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { levels } from '../types'
 import { seals } from '../data/seals'
-import { buildProgressOptions, finalParetoFrontier, isDominatedPlan, optimizeGoal } from './goalOptimizer'
+import { buildProgressOptions, finalParetoFrontier, isDominatedPlan, optimizeGoal, optimizeGoalWithTicketLimit } from './goalOptimizer'
 import { levelFor, nextLevel } from './calculations'
 import { progressionForIdentity } from '../data/progressions'
 
@@ -13,6 +13,7 @@ const byName = (name: string, attribute: string) => {
 
 describe('goal optimizer', () => {
   const gammamon = byName('Gammamon', 'HT')
+  const patamon = byName('Patamon', 'AT')
   it('creates exactly one candidate for every useful rank', () => {
     const options = buildProgressOptions(gammamon)
     expect(options.map(option => option.finalQuantity)).toEqual([1, 50, 200, 500, 1000, 3000])
@@ -26,7 +27,6 @@ describe('goal optimizer', () => {
     expect(silver.bonusGain).toBe(20)
   })
   it('uses the individual quantity already owned before pricing a new rank', () => {
-    const patamon = byName('Patamon', 'AT')
     const silver = buildProgressOptions(patamon, { quantity: 100 }).find(option => option.level === 'silver')!
     expect(silver.finalQuantity).toBe(200)
     expect(silver.additionalSeals).toBe(100)
@@ -87,5 +87,27 @@ describe('goal optimizer', () => {
     const ticketsFirst = { recommendations: [], totalBonus: 200, totalTickets: 100, totalOpeners: 16, totalAdditionalSeals: 800, excess: 0 }
     const openersFirst = { recommendations: [], totalBonus: 200, totalTickets: 2500, totalOpeners: 2, totalAdditionalSeals: 100, excess: 0 }
     expect(finalParetoFrontier([ticketsFirst, openersFirst], 200)).toHaveLength(2)
+  })
+  it('finds a ticket-limited route without exceeding the declared budget', () => {
+    const cheapest = optimizeGoal('AT', 100, seals, {}, 'cheap')!
+    const result = optimizeGoalWithTicketLimit('AT', 100, seals, {}, cheapest.totalTickets)
+    expect(result.plan?.totalBonus).toBeGreaterThanOrEqual(100)
+    expect(result.plan?.totalTickets).toBeLessThanOrEqual(cheapest.totalTickets)
+  })
+  it('accepts a route whose incremental Ticket cost equals the declared limit', () => {
+    const cheapest = optimizeGoal('AT', 100, seals, {}, 'cheap')!
+    expect(optimizeGoalWithTicketLimit('AT', 100, seals, {}, cheapest.totalTickets).plan?.totalTickets).toBe(cheapest.totalTickets)
+  })
+  it('does not recommend a route above the Ticket limit and reports the known shortfall', () => {
+    const result = optimizeGoalWithTicketLimit('AT', 100, seals, {}, 0)
+    expect(result.plan).toBeNull()
+    expect(result.bestWithinBudget?.totalBonus).toBe(0)
+    expect(result.additionalTicketsNeeded).toBeGreaterThan(0)
+  })
+  it('prices only the remaining seal progression within a Ticket limit', () => {
+    const fresh = optimizeGoalWithTicketLimit('AT', 20, [patamon], {}, 1000).plan!
+    const progressed = optimizeGoalWithTicketLimit('AT', 20, [patamon], { [patamon.id]: { quantity: 100 } }, 1000).plan!
+    expect(fresh.recommendations[0].finalQuantity).toBe(50)
+    expect(progressed.recommendations[0].additionalSeals).toBe(100)
   })
 })

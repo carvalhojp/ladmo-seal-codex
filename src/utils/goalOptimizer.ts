@@ -21,6 +21,11 @@ export interface GoalPlan {
   totalAdditionalSeals: number
   excess: number
 }
+export interface TicketBudgetResult {
+  plan: GoalPlan | null
+  bestWithinBudget: GoalPlan | null
+  additionalTicketsNeeded: number | null
+}
 
 export const LESS_OPENERS_WEIGHT = 0.70
 export const LESS_OPENERS_TICKETS_WEIGHT = 0.30
@@ -126,21 +131,43 @@ const compareValue = (a: GoalPlan, b: GoalPlan, tMin: number, oMin: number) =>
   (VALUE_TICKETS_WEIGHT * safeRatio(b.totalTickets, tMin) + VALUE_OPENERS_WEIGHT * safeRatio(b.totalOpeners, oMin)) ||
   a.totalTickets - b.totalTickets || a.totalOpeners - b.totalOpeners || a.excess - b.excess || a.totalAdditionalSeals - b.totalAdditionalSeals
 
-/** Exact multiple-choice DP for the primary "least Tickets" strategy. */
-function optimizeLeastTickets(attribute: Attribute, target: number, seals: Seal[], progressById: Record<string, SealProgressInput>): GoalPlan | null {
+/** Exact multiple-choice DP used by the ticket-first strategies. */
+function leastTicketStates(attribute: Attribute, target: number, seals: Seal[], progressById: Record<string, SealProgressInput>, ticketBudget = Number.POSITIVE_INFINITY): GoalPlan[] {
   let states = new Map<number, GoalPlan>([[0, zeroPlan()]])
   for (const seal of seals.filter(item => item.attribute === attribute && !progressById[item.id]?.doNotRecommend)) {
     const options = buildProgressOptions(seal, progressById[seal.id])
     const next = new Map(states)
     for (const plan of states.values()) for (const option of options) {
       const candidate = append(plan, option)
+      if (candidate.totalTickets > ticketBudget) continue
       const existing = next.get(candidate.totalBonus)
       if (!existing || compareCheap({ ...candidate, excess: Math.max(0, candidate.totalBonus - target) }, { ...existing, excess: Math.max(0, existing.totalBonus - target) }) < 0) next.set(candidate.totalBonus, candidate)
     }
     states = next
   }
-  const valid = [...states.values()].filter(plan => plan.totalBonus >= target).map(plan => ({ ...plan, excess: plan.totalBonus - target }))
+  return [...states.values()]
+}
+
+/** Exact multiple-choice DP for the primary "least Tickets" strategy. */
+function optimizeLeastTickets(attribute: Attribute, target: number, seals: Seal[], progressById: Record<string, SealProgressInput>): GoalPlan | null {
+  const valid = leastTicketStates(attribute, target, seals, progressById).filter(plan => plan.totalBonus >= target).map(plan => ({ ...plan, excess: plan.totalBonus - target }))
   return valid.sort(compareCheap)[0] ?? null
+}
+
+/** Plans only with the player's declared Ticket ceiling; does not persist that ceiling. */
+export function optimizeGoalWithTicketLimit(attribute: Attribute, target: number, seals: Seal[], progressById: Record<string, SealProgressInput>, ticketBudget: number): TicketBudgetResult {
+  const budget = Math.max(0, Math.trunc(ticketBudget))
+  if (target <= 0) return { plan: zeroPlan(), bestWithinBudget: zeroPlan(), additionalTicketsNeeded: 0 }
+  const states = leastTicketStates(attribute, target, seals, progressById, budget)
+  const plan = states.filter(item => item.totalBonus >= target).map(item => ({ ...item, excess: item.totalBonus - target })).sort(compareCheap)[0] ?? null
+  if (plan) return { plan, bestWithinBudget: plan, additionalTicketsNeeded: 0 }
+  const bestWithinBudget = [...states].sort((a, b) => b.totalBonus - a.totalBonus || a.totalTickets - b.totalTickets || a.totalOpeners - b.totalOpeners || a.totalAdditionalSeals - b.totalAdditionalSeals)[0] ?? null
+  const cheapestTargetPlan = optimizeLeastTickets(attribute, target, seals, progressById)
+  return {
+    plan: null,
+    bestWithinBudget,
+    additionalTicketsNeeded: cheapestTargetPlan ? Math.max(0, cheapestTargetPlan.totalTickets - budget) : null,
+  }
 }
 
 export function optimizeGoal(attribute: Attribute, target: number, seals: Seal[], progressById: Record<string, SealProgressInput>, strategy: GoalStrategy): GoalPlan | null {
