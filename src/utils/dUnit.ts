@@ -14,7 +14,7 @@ export const hasDUnitInventoryRecord = (entry: DUnitInventoryEntry | undefined) 
 const validConditionIds = new Set(dUnitSets.flatMap(set => set.conditions.map(condition => condition.id)))
 const validInventoryIds = new Set(confirmedDUnitPortraitIdentities().flatMap(entry => entry.digimonId ? [entry.digimonId] : []))
 /** Kept solely to preserve records stored before the ordered source correction. */
-const legacyInventoryIdAliases: Record<string, string> = { 'omegamon-x-supremacy': 'omegamon-resistance-supremacy' }
+export const legacyInventoryIdAliases: Record<string, string> = { 'omegamon-x-supremacy': 'omegamon-resistance-supremacy' }
 
 export const readDUnitProgress = (storage: Pick<Storage, 'getItem'>): DUnitProgress => {
   try {

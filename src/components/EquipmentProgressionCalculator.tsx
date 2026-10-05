@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { EquipmentDungeon, EquipmentRecipe } from '../data/equipment'
-import { calculateLoaderProgression, calculateProgression, formatTera, parseTera, type MaterialAmounts } from '../utils/equipmentProgression'
+import { calculateLoaderProgression, calculateProgression, formatTera, parseTera, resolveWeeklyReward, type MaterialAmounts, type WeeklyQuestSelection } from '../utils/equipmentProgression'
 
 const hasQuestReward = (dungeon: EquipmentDungeon) => Boolean(dungeon.prerequisite?.materials?.some(material => dungeon.weekly?.materials?.some(weekly => weekly.name === material.name)))
 
@@ -19,6 +19,7 @@ export function EquipmentProgressionCalculator({ dungeons, t }: { dungeons: Equi
   const [materials, setMaterials] = useState<Record<string, string>>({})
   const [tera, setTera] = useState('0')
   const [questCompleted, setQuestCompleted] = useState(false)
+  const [weeklyQuestSelection, setWeeklyQuestSelection] = useState<WeeklyQuestSelection>('both')
   const [submitted, setSubmitted] = useState(false)
 
   const dungeon = calculable.find(item => item.id === dungeonId) ?? calculable[0]
@@ -29,12 +30,13 @@ export function EquipmentProgressionCalculator({ dungeons, t }: { dungeons: Equi
   const multiplier = dungeon?.perPartCraft ? pieceCount : 1
   const ownedMaterials: MaterialAmounts = Object.fromEntries(Object.entries(materials).map(([name, amount]) => [name, Math.max(0, Number.parseInt(amount, 10) || 0)]))
   const canUseQuest = dungeon ? hasQuestReward(dungeon) : false
+  const weekly = resolveWeeklyReward(dungeon, weeklyQuestSelection)
   const calculation = recipes.length ? calculateProgression({
     recipes,
     multiplier,
     ownedMaterials,
     ownedMoney: parseTera(tera),
-    weekly: dungeon?.weekly,
+    weekly,
     prerequisite: dungeon?.prerequisite,
     questCompleted: canUseQuest ? questCompleted : true,
   }) : null
@@ -54,6 +56,7 @@ export function EquipmentProgressionCalculator({ dungeons, t }: { dungeons: Equi
         {dungeon?.recipes && <label>{t.baseEquipment}<select value={recipeIndex} onChange={event => { setRecipeIndex(Number(event.target.value)); setMaterials({}); setSubmitted(false) }}>{dungeon.recipes.map((item, index) => <option key={`${item.label}-${index}`} value={index}>{routeLabel(item, t)}</option>)}</select></label>}
         {dungeon?.perPartCraft && <><label>{t.set}<select value={collection || dungeon.perPartCraft.collections[0]} onChange={event => setCollection(event.target.value)}>{dungeon.perPartCraft.collections.map(item => <option key={item}>{item}</option>)}</select></label><label>{t.pieceQuantity}<input type="number" min="1" max="6" value={pieceCount} onChange={event => setPieceCount(Math.min(6, Math.max(1, Number(event.target.value) || 1)))} /></label><small>{t.perPart}: {dungeon.perPartCraft.parts.join(' · ')}</small></>}
         {dungeon?.progression && <div className="equipment-level-fields"><label>{t.currentLevel}<select value={currentLevel} onChange={event => { setCurrentLevel(Number(event.target.value)); setSubmitted(false) }}>{Array.from({ length:11 }, (_, level) => <option key={level} value={level}>Lv {level}</option>)}</select></label><label>{t.desiredLevel}<select value={targetLevel} onChange={event => { setTargetLevel(event.target.value); setSubmitted(false) }}>{Array.from({ length:10 - currentLevel }, (_, index) => currentLevel + index + 1).map(level => <option key={level} value={level}>Lv {level}</option>)}<option value="complete">{t.loaderComplete}</option></select></label></div>}
+        {dungeon?.weeklyDifficultyQuests && <label>{t.weeklyQuestsToDo}<select value={weeklyQuestSelection} onChange={event => setWeeklyQuestSelection(event.target.value as WeeklyQuestSelection)}><option value="easy">{t.easy}</option><option value="normal">{t.normal}</option><option value="both">{t.both}</option></select></label>}
 
         {calculation?.materials.map(material => <label key={material.name}>{t.materialsOwned}: {material.name}<input type="number" min="0" step="1" value={materials[material.name] ?? ''} onChange={event => setOwned(material.name, event.target.value)} placeholder="0" /></label>)}
         <label>{t.teraAvailable}<input type="text" inputMode="decimal" value={tera} onChange={event => setTera(event.target.value)} placeholder="80" /></label>
@@ -70,7 +73,7 @@ export function EquipmentProgressionCalculator({ dungeons, t }: { dungeons: Equi
           {dungeon?.recipes && <p>{t.route}: {routeLabel(recipe!, t)}</p>}
           <section><h3>{t.resources}</h3>{calculation.materials.map(material => <div className="equipment-calculator-material" key={material.name}><b>{material.name}</b><span>{t.required}: <strong>{material.required}</strong></span><span>{t.owned}: <strong>{material.owned}</strong></span><span>{t.missing}: <strong>{material.missing}</strong></span></div>)}</section>
           <section><h3>{t.tera}</h3><div className="equipment-calculator-money"><span>{t.totalCost}: <strong>{formatTera(calculation.money.required)}</strong></span><span>{t.owned}: <strong>{formatTera(calculation.money.owned)}</strong></span><span>{t.missing}: <strong>{formatTera(calculation.money.missing)}</strong></span></div></section>
-          <section><h3>{t.estimatedTime}</h3>{calculation.weeks.weeks === null ? <p className="equipment-calculator-warning">{t.timeUnavailable}: {calculation.weeks.unknownMaterials.join(', ')}.</p> : <><b className="equipment-week-count">{calculation.weeks.weeks} {calculation.weeks.weeks === 1 ? t.week : t.weeks}</b>{calculation.weeks.weeks > 0 && <p>{calculation.includesQuest ? `${t.firstWeek}: ${Object.entries(calculation.weeks.firstWeek).map(([name, amount]) => `+${amount} ${name}`).join(' · ')}. ` : ''}{t.followingWeeks}: {Object.entries(calculation.weeks.weekly).map(([name, amount]) => `+${amount} ${name}`).join(' · ')}.</p>}</>}</section>
+          <section><h3>{t.estimatedTime}</h3>{calculation.weeks.weeks === null ? <p className="equipment-calculator-warning">{t.timeUnavailable}: {calculation.weeks.unknownMaterials.join(', ')}.</p> : <><b className="equipment-week-count">{calculation.weeks.weeks} {calculation.weeks.weeks === 1 ? t.week : t.weeks}</b>{dungeon?.weeklyDifficultyQuests ? <p>{t.considering}: {weeklyQuestSelection === 'both' ? `${t.easy} + ${t.normal}` : t[weeklyQuestSelection]}. {Object.entries(calculation.weeks.weekly).map(([name, amount]) => `+${amount} ${name}`).join(' · ')}.</p> : calculation.weeks.weeks > 0 && <p>{calculation.includesQuest ? `${t.firstWeek}: ${Object.entries(calculation.weeks.firstWeek).map(([name, amount]) => `+${amount} ${name}`).join(' · ')}. ` : ''}{t.followingWeeks}: {Object.entries(calculation.weeks.weekly).map(([name, amount]) => `+${amount} ${name}`).join(' · ')}.</p>}</>}</section>
           {dungeon?.notes?.length ? <p className="equipment-calculator-warning">{t.rngWarning}</p> : null}
         </>}
       </div>

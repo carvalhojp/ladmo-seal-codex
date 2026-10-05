@@ -1,7 +1,8 @@
-import type { EquipmentInfo, EquipmentRecipe } from '../data/equipment'
+import type { EquipmentDungeon, EquipmentInfo, EquipmentRecipe } from '../data/equipment'
 
 export type MaterialAmounts = Record<string, number>
 export type MoneyAmount = number
+export type WeeklyQuestSelection = 'easy' | 'normal' | 'both'
 
 const moneyUnits: Record<string, number> = { B: 1, M: 1_000, T: 1_000_000 }
 
@@ -35,6 +36,14 @@ function addMaterials(target: MaterialAmounts, materials: EquipmentRecipe['mater
   materials?.forEach(material => {
     target[material.name] = (target[material.name] ?? 0) + parseQuantity(material.amount) * multiplier
   })
+}
+
+/** Resolves the two explicitly designated weekly-difficulty Dungeons without treating all difficulties as weekly. */
+export function resolveWeeklyReward(dungeon: EquipmentDungeon | undefined, selection: WeeklyQuestSelection): EquipmentInfo | undefined {
+  if (!dungeon?.weeklyDifficultyQuests) return dungeon?.weekly
+  const difficulties = dungeon.difficulties ?? []
+  const selected = selection === 'both' ? difficulties : difficulties.filter(item => item.weeklyQuest === selection)
+  return { materials: selected.flatMap(item => item.materials ?? []) }
 }
 
 export function mergeRecipes(recipes: EquipmentRecipe[], multiplier = 1) {

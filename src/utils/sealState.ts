@@ -10,6 +10,7 @@ export type SealStateMap = Record<string, SealUserState>
 export const sealStateKey = 'ladmo-seal-state-v2'
 const obsoleteDorugamonId = 'seal-22829'
 const canonicalDorugamonId = 'seal-19435'
+export const legacySealIdAliases: Record<string, string> = { [obsoleteDorugamonId]: canonicalDorugamonId }
 const emptyState = (): SealUserState => ({ quantity: 0, hasSeal: false, doNotRecommend: false })
 
 export function getSealState(states: SealStateMap, sealId: string): SealUserState {

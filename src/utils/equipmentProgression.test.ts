@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { equipmentDungeons } from '../data/equipment'
-import { calculateLoaderProgression, calculateProgression, formatTera, parseTera } from './equipmentProgression'
+import { calculateLoaderProgression, calculateProgression, formatTera, parseTera, resolveWeeklyReward } from './equipmentProgression'
 
 const byId = (id: string) => equipmentDungeons.find(dungeon => dungeon.id === id)!
 const recipe = (id: string, index = 0) => byId(id).recipes![index]
@@ -76,6 +76,28 @@ describe('equipment progression calculations', () => {
     expect(formatTera(result.money.required)).toBe('90T')
     expect(formatTera(result.money.owned)).toBe('80T')
     expect(formatTera(result.money.missing)).toBe('10T')
+  })
+
+  it('uses the selected recurring difficulty quests only for Centro Comercial and Chimairamon', () => {
+    const shopping = byId('shopping-center')
+    const chimairamon = byId('chimairamon')
+    const shoppingRecipe = recipe('shopping-center', 1)
+    const chimairamonRecipe = recipe('chimairamon', 2)
+    ;([['easy', 6], ['normal', 4], ['both', 3]] as const).forEach(([selection, weeks]) => {
+      const result = calculateProgression({ recipes:[shoppingRecipe], ownedMaterials:{ 'DigiCode Contaminado':10 }, weekly:resolveWeeklyReward(shopping, selection) })
+      expect(result.weeks.weeks).toBe(weeks)
+      expect(result.money.required).toBe(parseTera('30T'))
+    })
+    ;([['easy', 17], ['normal', 4], ['both', 3]] as const).forEach(([selection, weeks]) => {
+      const result = calculateProgression({ recipes:[chimairamonRecipe], ownedMaterials:{ 'Aura Maligna de Chimairamon':10 }, weekly:resolveWeeklyReward(chimairamon, selection) })
+      expect(result.weeks.weeks).toBe(weeks)
+      expect(result.money.required).toBe(parseTera('100T'))
+    })
+    expect(calculateProgression({ recipes:[shoppingRecipe], ownedMaterials:{ 'DigiCode Contaminado':50 }, weekly:resolveWeeklyReward(shopping, 'easy') }).weeks.weeks).toBe(0)
+    shopping.recipes!.forEach(item => expect(calculateProgression({ recipes:[item], weekly:resolveWeeklyReward(shopping, 'both') }).weeks.unknownMaterials).toEqual([]))
+    chimairamon.recipes!.forEach(item => expect(calculateProgression({ recipes:[item], weekly:resolveWeeklyReward(chimairamon, 'both') }).weeks.unknownMaterials).toEqual([]))
+    expect(resolveWeeklyReward(byId('dark-web'), 'both')).toBe(byId('dark-web').weekly)
+    expect(resolveWeeklyReward(byId('arena-hard'), 'both')).toBe(byId('arena-hard').weekly)
   })
 
   it('does not invent a weekly rate for secondary Arena materials or RNG progressions', () => {
