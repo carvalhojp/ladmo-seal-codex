@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { dUnitSets, type DUnitCondition } from '../data/dUnitAudit'
 import { dUnitPortraitIdentityAudit, identitiesForDUnitSet } from '../data/dUnitPortraitIdentityAudit'
 import { bonusKey, calculateDUnitGoalRoute, isDUnitConditionCompleted, type DUnitBonusKey, type DUnitProgress } from '../utils/dUnit'
@@ -55,10 +55,10 @@ const taskLabel = (t: any, summary: ReturnType<typeof routeTaskSummary>) => [
   summary.unknown && `${summary.unknown} ${t.dunitTasksOther}`,
 ].filter(Boolean).join(' · ')
 
-function RouteCard({ route, index, progress, playerState, selected, onSelect, onComplete, t, selectedLabel, currentBonus }: { route: RouteLike; index: number; progress: DUnitProgress; playerState: DUnitPlayerState; selected: boolean; onSelect: () => void; onComplete: (setId: string, conditionId: string) => void; t: any; selectedLabel: string; currentBonus: number }) {
+function RouteCard({ route, index, progress, snapshotProgress, playerState, selected, onSelect, onComplete, t, selectedLabel, currentBonus }: { route: RouteLike; index: number; progress: DUnitProgress; snapshotProgress:DUnitProgress; playerState: DUnitPlayerState; selected: boolean; onSelect: () => void; onComplete: (setId: string, conditionId: string) => void; t: any; selectedLabel: string; currentBonus: number }) {
   const [expanded, setExpanded] = useState(false)
   const groups = groupDUnitRouteRecommendations(route.recommendations)
-  const state = routeState(route), tasks = routeTaskSummary(route, progress)
+  const state = routeState(route), tasks = routeTaskSummary(route, snapshotProgress)
   const status = state === 'validated' ? t.dunitCostValidated : state === 'partial' ? t.dunitCostPartial : t.dunitCostUnverified
   return <article className="dunit-route-card">
     <div className="dunit-route-card-top"><div><span className="eyebrow">{t.dunitRouteCandidate}</span><b>{routeNames(route).join(' · ')}</b></div><label className="dunit-compare-select"><input type="checkbox" checked={selected} onChange={onSelect}/>{t.dunitCompareSelect}</label></div>
@@ -123,12 +123,12 @@ function RouteComparison({ routes, t, selectedLabel, progress, playerState, onRe
     const exclusive=index===0 ? unique(comparisons.flatMap(item=>item.remainingOnlyLeft)) : comparisons[index-1]?.remainingOnlyRight ?? []
     const levelCount=overview.determinability.levels?routeWork.filter(item=>item.kind==='level'&&item.completeIdentity).length:t.dunitNotIdentified
     const transcendenceCount=overview.determinability.transcendence?routeWork.filter(item=>item.kind==='transcendence'&&item.completeIdentity).length:t.dunitNotIdentified
-    return <article key={dUnitRouteSignature(route)}><div className="dunit-comparison-route-heading"><b>{t.dunitRouteCandidate}</b><button className="quiet" onClick={()=>onRemove(route)}>{t.dunitRemoveComparison}</button></div><small>{routeNames(route).join(' · ')}</small><div className="dunit-route-summary"><span>{t.dunitRouteGain}: +{route.totalGain} {selectedLabel}</span><span>{t.dunitRouteSets}: {route.setCount}</span><span>{t.dunitMissingBases}: {overview.missingBases.length}</span><span>{t.dunitIndividualEvolutions}: {overview.evolutions.length}</span><span>{t.dunitPendingLevelConditions}: {levelCount}</span><span>{t.dunitPendingTranscendenceConditions}: {transcendenceCount}</span><span className={`dunit-comparison-${state}`}>{state === 'validated' ? t.dunitCostValidated : state === 'partial' ? t.dunitCostPartial : t.dunitCostUnverified}</span></div><details className="dunit-route-details"><summary>{t.dunitRouteDetails}</summary><div className="dunit-candidate-details">{overview.owned.length>0&&<small><b>{t.dunitInventoryCredit}</b><br/>{overview.owned.join(', ')}</small>}{overview.missingBases.length>0&&<small><b>{t.dunitMissingBases}</b><br/>{overview.missingBases.join(', ')}</small>}{overview.confirmedLines.length>0&&<small><b>{t.dunitConfirmedLines}</b><br/>{overview.confirmedLines.join(', ')}</small>}{overview.evolutions.length>0&&<small><b>{t.dunitIndividualEvolutions}</b><br/>{overview.evolutions.join(', ')}</small>}{overview.levels.length>0&&<small><b>{t.dunitPendingLevels}</b><br/>{overview.levels.join(' · ')}</small>}{overview.transcendence.length>0&&<small><b>{t.dunitPendingTranscendence}</b><br/>{overview.transcendence.join(', ')}</small>}{exclusive.length>0&&<small><b>{t.dunitRemainingExclusive}</b><br/>{exclusive.join(', ')}</small>}{overview.historicalObtainment.length>0&&<small><b>{t.dunitHistoricalObtainment}</b><br/>{overview.historicalObtainment.join(' · ')}</small>}{overview.unlocks.length>0&&<small><b>{t.dunitKnownUnlocks}</b><br/>{overview.unlocks.join(', ')}</small>}{routeWork.map(item=><small key={item.condition.id}><b>{setName(item.setId)} — {item.condition.requirement}</b><br/>{routeConditionDetail(item,t)}</small>)}</div></details></article>
+    return <article key={dUnitRouteSignature(route)}><div className="dunit-comparison-route-heading"><b>{t.dunitRouteCandidate}</b><button className="quiet" onClick={()=>onRemove(route)}>{t.dunitRemoveComparison}</button></div><small>{routeNames(route).join(' · ')}</small><div className="dunit-route-summary"><span>{t.dunitRouteGain}: +{route.totalGain} {selectedLabel}</span><span>{t.dunitRouteSets}: {route.setCount}</span><span>{t.dunitMissingBases}: {overview.missingBases.length}</span><span>{t.dunitIndividualEvolutions}: {overview.evolutions.length}</span><span>{t.dunitPendingLevelConditions}: {levelCount}</span><span>{t.dunitPendingTranscendenceConditions}: {transcendenceCount}</span><span className={`dunit-comparison-${state}`}>{state === 'validated' ? t.dunitCostValidated : state === 'partial' ? t.dunitCostPartial : t.dunitCostUnverified}</span></div><details className="dunit-route-details"><summary>{t.dunitRouteDetails}</summary><div className="dunit-candidate-details">{overview.owned.length>0&&<small><b>{t.dunitInventoryCredit}</b><br/>{overview.owned.join(', ')}</small>}{overview.missingBases.length>0&&<small><b>{t.dunitMissingBases}</b><br/>{overview.missingBases.join(', ')}</small>}{overview.confirmedLines.length>0&&<small><b>{t.dunitConfirmedLines}</b><br/>{overview.confirmedLines.join(', ')}</small>}{overview.evolutions.length>0&&<small><b>{t.dunitIndividualEvolutions}</b><br/>{overview.evolutions.join(', ')}</small>}{overview.levels.length>0&&<small><b>{t.dunitPendingLevels}</b><br/>{overview.levels.join(' · ')}</small>}{overview.transcendence.length>0&&<small><b>{t.dunitPendingTranscendence}</b><br/>{overview.transcendence.join(', ')}</small>}{exclusive.length>0&&<small><b>{t.dunitRemainingExclusive}</b><br/>{exclusive.join(', ')}</small>}{overview.historicalObtainment.length>0&&<small><b>{t.dunitHistoricalObtainment}</b><br/>{overview.historicalObtainment.join(' · ')}</small>}{overview.unlocks.length>0&&<small><b>{t.dunitKnownUnlocks}</b><br/>{overview.unlocks.join(', ')}</small>}{routeWork.map(item=><small key={item.condition.id}><b>{isDUnitRouteRecommendationCompleted(progress,item.condition)?`✓ ${t.dunitDone} — `:''}{setName(item.setId)} — {item.condition.requirement}</b><br/>{routeConditionDetail(item,t)}</small>)}</div></details></article>
   })}</div><div className="dunit-shared-requirements">{shared.length>0?<p>{t.dunitSharedRequirements}: {shared.length}</p>:<p>{t.dunitSharedUnavailable}</p>}{(shared.length>0||similar.length>0||unknown.length>0)&&<details className="dunit-route-details"><summary>{t.dunitSharedDetails}</summary><div className="dunit-candidate-details">{shared.length>0&&<small><b>{t.dunitSharedRequirements}</b><br/>{shared.join(' · ')}</small>}{similar.length>0&&<small><b>{t.dunitSimilarRequirements}</b><br/>{similar.join(' · ')}</small>}{unknown.length>0&&<small><b>{t.dunitSharedUnavailable}</b><br/>{unknown.join(' · ')}</small>}</div></details>}</div><p className="dunit-route-notice">{t.dunitComparisonLimits}</p></section>
 }
 
 export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerState,go }: {t:Record<string,string>;lang:Lang;objective:ProgressionObjective;progress:DUnitProgress;toggle:(setId:string,conditionId:string,checked:boolean)=>void;playerState:DUnitPlayerState;go:()=>void}) {
-  const t:Record<string,string>={...copy,dunitMarkDone:copy.ppMarkDone,dunitSearchNoCandidates:copy.ppNoSearch,dunitProjectedTotal:copy.ppProjected,dunitIdentityPending:copy.ppIdentity}
+  const t:Record<string,string>={...copy,dunitDone:copy.ppStepDone,dunitMarkDone:copy.ppMarkDone,dunitSearchNoCandidates:copy.ppNoSearch,dunitProjectedTotal:copy.ppProjected,dunitIdentityPending:copy.ppIdentity}
   const options = useMemo(() => progressionDUnitOptions(objective), [objective])
   const [selectedKey,setSelectedKey]=useState<DUnitBonusKey|''>('')
   const key=objective==='Dano habilidade'?selectedKey:(options[0]?.key??'')
@@ -138,6 +138,7 @@ export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerS
   const [invalidated,setInvalidated]=useState(false)
   const [confirmation,setConfirmation]=useState('')
   const [attempted,setAttempted]=useState(false)
+  const [stale,setStale]=useState(false)
   const inputRef=useRef<HTMLInputElement>(null),typeRef=useRef<HTMLSelectElement>(null),statusRef=useRef<HTMLDivElement>(null)
   const pendingRegistrations=useRef(new Set<string>())
   const unit=progressionUnit(objective,'dunit'),parsed=parseProgressionTarget(draft,unit,'dunit')
@@ -149,7 +150,10 @@ export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerS
   const selectedLabel=[objectiveLabel,qualifier?t[progressionSubtypeLabelKey(qualifier)]??qualifier:'',`(${unit==='percent'?'%':t.ppPoints})`].filter(Boolean).join(' ')
   const valueLabel=(value:number)=>`+${number(value)} ${selectedLabel}`
   const invalidate=()=>{if(storedSnapshot){setInvalidated(true);setSnapshot(null)}setComparison([]);setCandidateQuery('');setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE)}
-  const snapshot=storedSnapshot&&storedSnapshot.source===progress&&storedSnapshot.playerSource===playerState&&storedSnapshot.draft===draft&&storedSnapshot.key===key?storedSnapshot:null
+  const snapshot=storedSnapshot&&storedSnapshot.draft===draft&&storedSnapshot.key===key?storedSnapshot:null
+  const outdated=Boolean(snapshot&&(stale||snapshot.source!==progress||snapshot.playerSource!==playerState))
+  const checklistProgress:DUnitProgress={...progress}
+  pendingRegistrations.current.forEach(conditionId=>{const setId=conditionId.replace(/-condition-\d+$/,'');checklistProgress[setId]={...checklistProgress[setId],[conditionId]:true}})
   const [candidateQuery, setCandidateQuery] = useState('')
   const [visibleRouteCount, setVisibleRouteCount] = useState(DUNIT_ROUTE_PAGE_SIZE)
   const [comparison, setComparison] = useState<RouteLike[]>([])
@@ -157,11 +161,15 @@ export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerS
     setAttempted(true)
     if(!key){typeRef.current?.focus();return}
     if(!parsed.ok){inputRef.current?.focus();return}
-    setSnapshot({...calculateDUnitGoalRoute(progress,key,parsed.value,playerState),source:progress,playerSource:playerState,draft,key});setInvalidated(false);setConfirmation('');setComparison([]);setCandidateQuery('');setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE);pendingRegistrations.current.clear()
+    setSnapshot({...calculateDUnitGoalRoute(progress,key,parsed.value,playerState),source:progress,playerSource:playerState,draft,key});setStale(false);setInvalidated(false);setConfirmation('');setComparison([]);setCandidateQuery('');setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE);pendingRegistrations.current.clear()
   }
-  useEffect(()=>{if(storedSnapshot&&(storedSnapshot.source!==progress||storedSnapshot.playerSource!==playerState))invalidate()},[progress,playerState])
   const start=useMemo(()=>({bonus:key?aggregateDUnitBonuses(progress)[key]??0:0,count:key?dUnitSets.flatMap(set=>set.conditions).filter(condition=>bonusKey(condition)===key&&isDUnitConditionCompleted(progress,condition)).length:0}),[progress,key])
-  const register=(setId:string,conditionId:string)=>{if(!snapshot||pendingRegistrations.current.has(conditionId))return;pendingRegistrations.current.add(conditionId);setConfirmation('ppConditionRecorded');invalidate();toggle(setId,conditionId,true);statusRef.current?.focus()}
+  const register=(setId:string,conditionId:string)=>{
+    if(!snapshot||pendingRegistrations.current.has(conditionId)||progress[setId]?.[conditionId]===true)return
+    const containsCondition=(route:RouteLike)=>route.recommendations.some(item=>item.setId===setId&&item.condition.id===conditionId)
+    if(!containsCondition(snapshot)&&!snapshot.alternatives.some(containsCondition)&&!snapshot.candidateAlternatives.some(containsCondition))return
+    pendingRegistrations.current.add(conditionId);setStale(true);setConfirmation('ppConditionRecorded');toggle(setId,conditionId,true)
+  }
   const routes = useMemo(() => snapshot ? filterDUnitCandidateRoutes(snapshot, candidateQuery) : [], [candidateQuery, snapshot])
   const visibleRoutes=routes.slice(0,visibleRouteCount)
   const compared = comparison
@@ -178,6 +186,7 @@ export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerS
       </form>
       <div className="plan-output">
         <span className="eyebrow">{t.ppCandidates}</span>
+        {outdated&&<div className="progression-status" role="status"><b>{t.ppProgressUpdated}</b><p>{t.ppDUnitStale}</p><button className="quiet" onClick={calculate}>{t.ppRecalculateDUnit}</button></div>}
         {!snapshot ? <div className="empty">{t.ppReady}</div> : snapshot.maximum < snapshot.target ? <div className="empty">{snapshot.maximum===0?t.ppNoOptions:progressionText(t.ppDUnitInsufficient,{maximum:valueLabel(snapshot.maximum),target:valueLabel(snapshot.target)})}</div> : <>
           <p>{t.ppCostNotice}</p><details className="progression-limit"><summary>{t.details}</summary><p>{t.ppInventoryNotice}</p><p>{t.ppObtainment}</p></details>
           <div className="dunit-goal-header"><span>{t.attribute}: <b>{selectedLabel}</b></span><span>{t.dunitRequestedAdditional}: <b>+{snapshot.target} {selectedLabel}</b></span><span>{t.dunitCurrentBonus}: <b>+{snapshot.current} {selectedLabel}</b></span><span>{t.dunitProjectedTotal}: <b>+{snapshot.current + snapshot.totalGain} {selectedLabel}</b></span></div>
@@ -185,9 +194,9 @@ export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerS
             <label>{t.dunitSearchRoutes}<input value={candidateQuery} onChange={event=>{setCandidateQuery(event.target.value);setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE)}} placeholder={t.dunitSearchRoutes}/><small>{t.dunitSearchHint}</small></label>
             <small>{candidateQuery ? `${visibleRoutes.length}/${routes.length} ${t.dunitRoutesFound}` : `${visibleRoutes.length}/${routes.length} ${t.dunitRouteCandidates}`}</small>
           </div>
-          {routes.length===0 ? <div className="empty dunit-search-empty"><b>{t.dunitSearchNoCandidates}</b></div> : <div className="dunit-routes-list">{visibleRoutes.map((route,index) => <RouteCard key={dUnitRouteSignature(route)} route={route} index={index} progress={progress} playerState={playerState} selected={comparison.some(item => dUnitRouteSignature(item) === dUnitRouteSignature(route))} onSelect={() => toggleComparison(route)} onComplete={register} t={t} selectedLabel={selectedLabel} currentBonus={snapshot.current}/>)}</div>}
+          {routes.length===0 ? <div className="empty dunit-search-empty"><b>{t.dunitSearchNoCandidates}</b></div> : <div className="dunit-routes-list">{visibleRoutes.map((route,index) => <RouteCard key={dUnitRouteSignature(route)} route={route} index={index} progress={checklistProgress} snapshotProgress={snapshot.source} playerState={snapshot.playerSource} selected={comparison.some(item => dUnitRouteSignature(item) === dUnitRouteSignature(route))} onSelect={() => toggleComparison(route)} onComplete={register} t={t} selectedLabel={selectedLabel} currentBonus={snapshot.current}/>)}</div>}
           {routes.length>visibleRouteCount&&<button className="quiet dunit-load-more" onClick={()=>setVisibleRouteCount(value=>value+DUNIT_ROUTE_PAGE_SIZE)}>{t.dunitLoadMore}</button>}
-          <RouteComparison routes={compared} t={t} selectedLabel={selectedLabel} progress={progress} playerState={playerState} onRemove={removeComparison} onClear={()=>setComparison([])}/>
+          <RouteComparison routes={compared} t={t} selectedLabel={selectedLabel} progress={checklistProgress} playerState={snapshot.playerSource} onRemove={removeComparison} onClear={()=>setComparison([])}/>
         </>}
       </div>
     </section>

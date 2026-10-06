@@ -10,6 +10,7 @@ import * as sealEngine from '../utils/goalOptimizer'
 import * as dunitEngine from '../utils/dUnit'
 import { seals } from '../data/seals'
 import { dUnitSets } from '../data/dUnitAudit'
+import { addRecommendedQuantity, type SealStateMap } from '../utils/sealState'
 
 // Exercise the existing components' handlers without adding a DOM dependency.
 // Real browser rendering and responsive layout are validated separately.
@@ -87,13 +88,13 @@ describe('Seal UI uses explicit calculation and incremental callbacks',()=>{
     expect(text(tree)).toContain(t.ppRecalculate);expect(text(tree)).not.toContain(t.ppOpenersNotice)
     expect(engine).toHaveBeenCalledTimes(1)
   })
-  it('keeps a valid route through language change, but clears it on real Seal state changes',()=>{
+  it('keeps a valid route through language and external Seal state changes, marking it stale',()=>{
     const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue(plan),props=sealProps()
     let tree=render(GoalPlanner,props);input(tree,'seal-target','500');tree=render(GoalPlanner,props);submit(tree)
     tree=render(GoalPlanner,{...props,lang:'en',t:{...t,...progressionPlannerCopy.en}})
     expect(text(tree)).toContain(progressionPlannerCopy.en.ppOpenersNotice)
     tree=render(GoalPlanner,{...props,sealStates:{[seals[0].id]:{quantity:0,hasSeal:false,doNotRecommend:true}}})
-    expect(text(tree)).toContain(t.ppRecalculate);expect(engine).toHaveBeenCalledTimes(1)
+    expect(text(tree)).toContain(t.ppSealStale);expect(text(tree)).toContain(t.ppOpenersNotice);expect(engine).toHaveBeenCalledTimes(1)
   })
   it('keeps Ticket editing temporary, returns partial budget results, and invalidates on strategy/budget changes',()=>{
     const engine=vi.spyOn(sealEngine,'optimizeGoalWithTicketLimit').mockReturnValue({plan:null,bestWithinBudget:plan,additionalTicketsNeeded:20}),props=sealProps()
@@ -104,14 +105,15 @@ describe('Seal UI uses explicit calculation and incremental callbacks',()=>{
     input(tree,'seal-budget','40');tree=render(GoalPlanner,props);expect(text(tree)).toContain(t.ppRecalculate)
     expect(engine).toHaveBeenCalledTimes(1)
   })
-  it('registers only an explicit acquisition and removes its old clickable route',()=>{
+  it('registers only an explicit acquisition and keeps its completed checklist step',()=>{
     const recommendation={seal:seals[0],level:'beginner',levelLabel:'Etapa',finalQuantity:50,additionalSeals:50,bonusGain:20,tickets:10,openers:1}
     vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue({...plan,recommendations:[recommendation]} as any)
     const props=sealProps();let tree=render(GoalPlanner,props);input(tree,'seal-target','20');tree=render(GoalPlanner,props);submit(tree);tree=render(GoalPlanner,props)
     expect(props.addRecommendation).not.toHaveBeenCalled()
     nodes(tree,node=>node.props.className?.includes('recommendation-add'))[0].props.onClick();tree=render(GoalPlanner,props)
     expect(props.addRecommendation).toHaveBeenCalledWith(seals[0].id,50)
-    expect(text(tree)).toContain(t.ppRegistered);expect(nodes(tree,node=>node.props.className?.includes('recommendation-add'))).toHaveLength(0)
+    expect(text(tree)).toContain(t.ppRegistered);expect(nodes(tree,node=>node.props.className?.includes('recommendation-add'))[0].props.disabled).toBe(true)
+    expect(text(tree)).toContain(t.ppStepRegistered);expect(text(tree)).toContain(t.ppSealStale)
   })
   it('does not treat a zero-quantity owned Seal as a contributing bonus',()=>{
     const seal=seals.find(item=>item.attribute==='AT')!,props={...sealProps(),sealStates:{[seal.id]:{quantity:0,hasSeal:true,doNotRecommend:false}}}
@@ -133,13 +135,13 @@ describe('D-Unit UI invalidation without extra engine calls',()=>{
     input(tree,'dunit-type',nodes(find(tree,'dunit-type'),node=>node.type==='option'&&node.props.value)[1].props.value);tree=render(DUnitGoalPlanner,props)
     expect(text(tree)).toContain(t.ppRecalculate);expect(engine).toHaveBeenCalledTimes(1)
   })
-  it.each(['progress','playerState'])('clears the D-Unit result on %s changes, without recalculating',field=>{
+  it.each(['progress','playerState'])('keeps the D-Unit snapshot stale on %s changes, without recalculating',field=>{
     const engine=stub(),props=dunitProps();let tree=render(DUnitGoalPlanner,props)
     expect(engine).not.toHaveBeenCalled()
     input(tree,'dunit-target','300');tree=render(DUnitGoalPlanner,props);submit(tree);tree=render(DUnitGoalPlanner,props)
     expect(text(tree)).toContain(t.ppNoOptions)
     tree=render(DUnitGoalPlanner,{...props,[field]:{}})
-    expect(text(tree)).toContain(t.ppRecalculate);expect(text(tree)).not.toContain(t.ppNoOptions);expect(engine).toHaveBeenCalledTimes(1)
+    expect(text(tree)).toContain(t.ppDUnitStale);expect(text(tree)).toContain(t.ppNoOptions);expect(engine).toHaveBeenCalledTimes(1)
   })
   it('preserves a valid result on language change and presents insufficient available gain',()=>{
     const engine=stub(),props=dunitProps();engine.mockReturnValue({maximum:290,target:300,current:20,totalGain:290,recommendations:[],alternatives:[],candidateAlternatives:[]} as any)
@@ -147,7 +149,7 @@ describe('D-Unit UI invalidation without extra engine calls',()=>{
     tree=render(DUnitGoalPlanner,{...props,lang:'en',t:{...t,...progressionPlannerCopy.en}})
     expect(text(tree)).toContain('below the target');expect(engine).toHaveBeenCalledTimes(1)
   })
-  it('registers an explicit condition, clears comparison, search and pagination but preserves confirmation',()=>{
+  it('registers an explicit condition while keeping comparison, search and snapshot',()=>{
     const condition=dUnitSets.find(set=>set.id==='dunit-34')!.conditions[0],recommendation={setId:'dunit-34',condition,estimatedCost:0,reasons:[],costBenefit:'unknown'}
     const engine=stub();engine.mockReturnValue({maximum:500,target:20,current:0,totalGain:20,setCount:1,unverifiedSetIds:['dunit-34'],recommendations:[recommendation],alternatives:[],candidateAlternatives:[]} as any)
     const props=dunitProps();let tree=render(DUnitGoalPlanner,props);input(tree,'dunit-target','20');tree=render(DUnitGoalPlanner,props);submit(tree);tree=render(DUnitGoalPlanner,props)
@@ -158,6 +160,104 @@ describe('D-Unit UI invalidation without extra engine calls',()=>{
     routeNode.props.onComplete('dunit-34',condition.id);tree=render(DUnitGoalPlanner,props)
     expect(props.toggle).toHaveBeenCalledWith('dunit-34',condition.id,true)
     expect(text(tree)).toContain(t.ppConditionRecorded)
-    expect(nodes(tree,node=>typeof node.type==='function'&&node.props.onComplete)).toHaveLength(0)
+    const remaining=nodes(tree,node=>typeof node.type==='function'&&node.props.onComplete)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].props.selected).toBe(true)
+    expect(remaining[0].props.progress['dunit-34'][condition.id]).toBe(true)
+    expect(nodes(tree,node=>node.type==='input'&&node.props.placeholder===t.dunitSearchRoutes)[0].props.value).toBe('Tentomon')
+    expect(text(tree)).toContain(t.ppDUnitStale)
+    remaining[0].props.onComplete('dunit-34',condition.id)
+    expect(props.toggle).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('progression checklist snapshots',()=>{
+  const clickText=(tree:any,label:string)=>nodes(tree,node=>node.type==='button'&&text(node)===label)[0].props.onClick()
+  const actions=(tree:any)=>nodes(tree,node=>node.props.className?.includes('recommendation-add'))
+  it('registers three Seal destinations without rerunning the engine and recalculates explicitly from latest progress',()=>{
+    const recommendations=seals.slice(0,4).map(seal=>({seal,level:'beginner',levelLabel:'Etapa',finalQuantity:300,additionalSeals:300,bonusGain:20,tickets:10,openers:1}))
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue({...plan,recommendations} as any)
+    const props=sealProps();props.addRecommendation=vi.fn((id,amount)=>{props.sealStates=addRecommendedQuantity(props.sealStates,id,amount)})
+    let tree=render(GoalPlanner,props);input(tree,'seal-target','500');input(tree,'seal-strategy','openers');tree=render(GoalPlanner,props);submit(tree);tree=render(GoalPlanner,props)
+    const status=nodes(tree,node=>node.props.role==='status'&&node.props.ref)[0],focus=vi.fn()
+    status.props.ref.current={focus}
+    for(let i=0;i<3;i++){actions(tree)[i].props.onClick();tree=render(GoalPlanner,props);expect(actions(tree).slice(0,i+1).every(node=>node.props.disabled)).toBe(true);expect(actions(tree)[3].props.disabled).toBe(false)}
+    expect(engine).toHaveBeenCalledTimes(1);expect(props.addRecommendation).toHaveBeenCalledTimes(3)
+    expect(focus).not.toHaveBeenCalled();expect(status.props.role).toBe('status')
+    expect(props.ticketBudget).toBe(500);expect(text(tree)).toContain(t.ppSealStale)
+    clickText(tree,t.ppRecalculateSeal);tree=render(GoalPlanner,props)
+    expect(engine).toHaveBeenCalledTimes(2);expect(engine).toHaveBeenLastCalledWith('AT',500,seals,expect.objectContaining({[seals[0].id]:{quantity:300,doNotRecommend:false}}),'openers')
+    expect(text(tree)).not.toContain(t.ppSealStale)
+  })
+  it.each([100,300,400])('safely handles Seal progress %s toward the snapshot destination 300',quantity=>{
+    const seal=seals[0],recommendation={seal,level:'beginner',levelLabel:'Etapa',finalQuantity:300,additionalSeals:300,bonusGain:20,tickets:10,openers:1}
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue({...plan,recommendations:[recommendation]} as any)
+    const props=sealProps();let tree=render(GoalPlanner,props);input(tree,'seal-target','500');tree=render(GoalPlanner,props);submit(tree)
+    const states:SealStateMap={[seal.id]:{quantity,hasSeal:true,doNotRecommend:false}}
+    tree=render(GoalPlanner,{...props,sealStates:states});const button=actions(tree)[0]
+    expect(button.props.disabled).toBe(quantity>=300)
+    button.props.onClick();button.props.onClick()
+    if(quantity<300){expect(props.addRecommendation).toHaveBeenCalledExactlyOnceWith(seal.id,200);expect(addRecommendedQuantity(states,seal.id,200)[seal.id].quantity).toBe(300)}else expect(props.addRecommendation).not.toHaveBeenCalled()
+    expect(engine).toHaveBeenCalledTimes(1)
+  })
+  it.each(['seal-target','seal-strategy','seal-budget'])('still removes a stale Seal snapshot when %s changes',id=>{
+    vi.spyOn(sealEngine,'optimizeGoalWithTicketLimit').mockReturnValue({plan,bestWithinBudget:null,additionalTicketsNeeded:null})
+    const props=sealProps();let tree=render(GoalPlanner,props);input(tree,'seal-target','500');input(tree,'seal-strategy','ticketLimit');tree=render(GoalPlanner,props);submit(tree);tree=render(GoalPlanner,props)
+    input(tree,id,id==='seal-strategy'?'cheap':'600');tree=render(GoalPlanner,props);expect(text(tree)).not.toContain(t.ppOpenersNotice)
+  })
+  it('invalidates Seal results on an inherited attribute change without engine calls',()=>{
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue(plan),props=sealProps()
+    let tree=render(GoalPlanner,props);input(tree,'seal-target','500');tree=render(GoalPlanner,props);submit(tree);tree=render(GoalPlanner,{...props,attribute:'DE'})
+    expect(text(tree)).not.toContain(t.ppOpenersNotice);expect(engine).toHaveBeenCalledTimes(1)
+  })
+  it('keeps D-Unit route values, search, loaded pages and comparison through three canonical completions; explicit recalculation replaces them',()=>{
+    const set=dUnitSets.find(set=>set.id==='dunit-34')!,other=dUnitSets.find(set=>set.id==='dunit-41')!
+    const recommendations=set.conditions.slice(0,3).map(condition=>({setId:set.id,condition,estimatedCost:0,reasons:[],costBenefit:'unknown'}))
+    const base={totalGain:310,setCount:1,unverifiedSetIds:[set.id],recommendations}
+    const alternatives=Array.from({length:26},(_,i)=>({...base,recommendations:[...recommendations,{setId:other.id,condition:{...other.conditions[0],id:`${other.id}-condition-${i+1}`},estimatedCost:0,reasons:[],costBenefit:'unknown'}]}))
+    const engine=vi.spyOn(dunitEngine,'calculateDUnitGoalRoute').mockReturnValue({...base,maximum:1000,target:300,current:20,alternatives:[],candidateAlternatives:alternatives} as any)
+    const props=dunitProps();props.toggle=vi.fn((setId,conditionId)=>{props.progress={...props.progress,[setId]:{...(props.progress as any)[setId],[conditionId]:true}}})
+    let tree=render(DUnitGoalPlanner,props);input(tree,'dunit-target','300');tree=render(DUnitGoalPlanner,props);submit(tree);tree=render(DUnitGoalPlanner,props)
+    const cards=()=>nodes(tree,node=>typeof node.type==='function'&&node.props.onComplete)
+    cards()[0].props.onSelect();cards()[1].props.onSelect();tree=render(DUnitGoalPlanner,props)
+    nodes(tree,node=>node.props.className==='quiet dunit-load-more')[0].props.onClick();tree=render(DUnitGoalPlanner,props);expect(cards()).toHaveLength(27)
+    for(const condition of set.conditions.slice(0,3)){cards()[0].props.onComplete(set.id,condition.id);tree=render(DUnitGoalPlanner,props);expect(cards()).toHaveLength(27);expect(cards().every(card=>card.props.progress[set.id][condition.id]===true)).toBe(true);cards()[1].props.onComplete(set.id,condition.id)}
+    expect(props.toggle).toHaveBeenCalledTimes(3);expect(engine).toHaveBeenCalledTimes(1)
+    expect(cards()[0].props.currentBonus).toBe(20);expect(cards()[0].props.route.totalGain).toBe(310)
+    expect(cards()[0].props.snapshotProgress).toEqual({})
+    const comparison=nodes(tree,node=>typeof node.type==='function'&&node.props.routes)[0];expect(comparison.props.routes).toHaveLength(2);expect(comparison.props.progress[set.id][set.conditions[0].id]).toBe(true)
+    const search=nodes(tree,node=>node.type==='input'&&node.props.placeholder===t.dunitSearchRoutes)[0];search.props.onChange({target:{value:'Tentomon'}});tree=render(DUnitGoalPlanner,props)
+    expect(text(tree)).toContain(t.ppDUnitStale)
+    clickText(tree,t.ppRecalculateDUnit);tree=render(DUnitGoalPlanner,props)
+    expect(engine).toHaveBeenCalledTimes(2);expect(engine).toHaveBeenLastCalledWith(props.progress,'EXP||percent',300,props.playerState)
+    expect(text(tree)).not.toContain(t.ppDUnitStale);expect(cards()).toHaveLength(24)
+    expect(nodes(tree,node=>typeof node.type==='function'&&node.props.routes)[0].props.routes).toHaveLength(0)
+    expect(nodes(tree,node=>node.type==='input'&&node.props.placeholder===t.dunitSearchRoutes)[0].props.value).toBe('')
+    input(tree,'dunit-target','400');tree=render(DUnitGoalPlanner,props);expect(cards()).toHaveLength(0)
+  })
+  it('uses canonical progress, not inventory possession, to block duplicate D-Unit completions',()=>{
+    const set=dUnitSets.find(set=>set.id==='dunit-34')!,condition=set.conditions[0]
+    vi.spyOn(dunitEngine,'calculateDUnitGoalRoute').mockReturnValue({maximum:500,target:20,current:0,totalGain:20,setCount:1,unverifiedSetIds:[set.id],recommendations:[{setId:set.id,condition}],alternatives:[],candidateAlternatives:[]} as any)
+    const props={...dunitProps(),playerState:{ownedDigimonIds:['tentomon']}};let tree=render(DUnitGoalPlanner,props);input(tree,'dunit-target','20');tree=render(DUnitGoalPlanner,props);submit(tree);tree=render(DUnitGoalPlanner,props)
+    const card=()=>nodes(tree,node=>typeof node.type==='function'&&node.props.onComplete)[0]
+    expect(card().props.progress).toEqual({});expect(props.toggle).not.toHaveBeenCalled()
+    tree=render(DUnitGoalPlanner,{...props,progress:{[set.id]:{[condition.id]:true}}});card().props.onComplete(set.id,condition.id);expect(props.toggle).not.toHaveBeenCalled()
+  })
+  it.each(['pt','en','es','ko'] as const)('localizes every checklist message in %s',lang=>{
+    for(const key of ['ppProgressUpdated','ppSealStale','ppDUnitStale','ppStepRegistered','ppStepDone','ppRecalculateSeal','ppRecalculateDUnit'])expect((progressionPlannerCopy[lang] as Record<string,string>)[key]).toBeTruthy()
+  })
+  it('completes a canonical condition in a large AT snapshot without spreading candidate arrays into arguments',()=>{
+    const set=dUnitSets.find(set=>set.conditions.some(condition=>condition.bonus.attribute==='AT'))!,condition=set.conditions.find(condition=>condition.bonus.attribute==='AT')!
+    const recommendation={setId:set.id,condition},route={totalGain:100,setCount:1,unverifiedSetIds:[set.id],recommendations:[recommendation]}
+    const engine=vi.spyOn(dunitEngine,'calculateDUnitGoalRoute').mockReturnValue({...route,maximum:1000,target:100,current:0,alternatives:[],candidateAlternatives:Array(150000).fill(route)} as any)
+    const props={...dunitProps(),objective:'AT'};props.toggle=vi.fn((setId,conditionId)=>{props.progress={...props.progress,[setId]:{...(props.progress as any)[setId],[conditionId]:true}}})
+    let tree=render(DUnitGoalPlanner,props);input(tree,'dunit-target','100');tree=render(DUnitGoalPlanner,props);submit(tree);tree=render(DUnitGoalPlanner,props)
+    const status=nodes(tree,node=>node.props.role==='status'&&node.props.ref)[0],focus=vi.fn();status.props.ref.current={focus}
+    const card=()=>nodes(tree,node=>typeof node.type==='function'&&node.props.onComplete)[0]
+    expect(()=>card().props.onComplete(set.id,condition.id)).not.toThrow();tree=render(DUnitGoalPlanner,props)
+    expect(props.toggle).toHaveBeenCalledExactlyOnceWith(set.id,condition.id,true)
+    expect(card().props.progress[set.id][condition.id]).toBe(true);expect(text(tree)).toContain(t.ppDUnitStale)
+    card().props.onComplete(set.id,condition.id);expect(props.toggle).toHaveBeenCalledTimes(1)
+    expect(engine).toHaveBeenCalledTimes(1);expect(focus).not.toHaveBeenCalled()
   })
 })
