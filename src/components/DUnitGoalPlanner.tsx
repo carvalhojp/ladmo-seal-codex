@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { dUnitSets, type DUnitCondition } from '../data/dUnitAudit'
 import { dUnitPortraitIdentityAudit, identitiesForDUnitSet } from '../data/dUnitPortraitIdentityAudit'
 import { bonusKey, calculateDUnitGoalRoute, isDUnitConditionCompleted, type DUnitBonusKey, type DUnitProgress } from '../utils/dUnit'
 import type { DUnitCandidateRoute, DUnitPlayerState } from '../utils/dUnitCostBenefit'
-import { NumericInput } from './NumericInput'
-import { PageHead } from './PageHead'
+import { aggregateDUnitBonuses } from '../utils/dUnit'
+import { parseProgressionTarget, progressionDUnitOptions, progressionObjectiveLabelKey, progressionSubtypeLabelKey, progressionText, progressionUnit, type ProgressionObjective } from '../utils/progressionPlanner'
+import type { Lang } from '../App'
 import { DUnitPortraitList } from './DUnitPortraitList'
 import { compareDUnitRouteWork, describeDUnitRouteWork } from '../utils/dUnitRouteWork'
 import { dUnitPortraitProgressionAudit } from '../data/dUnitPortraitProgressionAudit'
-import tipMascotUrl from '../assets/gabumon-tip.png'
 
 export const isDUnitRouteRecommendationCompleted = (progress: DUnitProgress, condition: DUnitCondition) => isDUnitConditionCompleted(progress, condition)
 type RouteRecommendation = ReturnType<typeof calculateDUnitGoalRoute>['recommendations'][number]
@@ -127,40 +127,65 @@ function RouteComparison({ routes, t, selectedLabel, progress, playerState, onRe
   })}</div><div className="dunit-shared-requirements">{shared.length>0?<p>{t.dunitSharedRequirements}: {shared.length}</p>:<p>{t.dunitSharedUnavailable}</p>}{(shared.length>0||similar.length>0||unknown.length>0)&&<details className="dunit-route-details"><summary>{t.dunitSharedDetails}</summary><div className="dunit-candidate-details">{shared.length>0&&<small><b>{t.dunitSharedRequirements}</b><br/>{shared.join(' · ')}</small>}{similar.length>0&&<small><b>{t.dunitSimilarRequirements}</b><br/>{similar.join(' · ')}</small>}{unknown.length>0&&<small><b>{t.dunitSharedUnavailable}</b><br/>{unknown.join(' · ')}</small>}</div></details>}</div><p className="dunit-route-notice">{t.dunitComparisonLimits}</p></section>
 }
 
-export function DUnitGoalPlanner({ t, progress, toggle, playerState = {} }: { t: any; progress: DUnitProgress; toggle: (setId: string, conditionId: string, checked: boolean) => void; playerState?: DUnitPlayerState }) {
-  const options = useMemo(() => [...new Map(dUnitSets.flatMap(set => set.conditions).map(condition => [bonusKey(condition), { key: bonusKey(condition), label: condition.bonus.rawLabel.replace(/ \+\d+%?$/, '') }])).values()], [])
-  const [key, setKey] = useState<DUnitBonusKey>(options[0]?.key ?? '||')
-  const [goal, setGoal] = useState(100)
-  const [snapshot, setSnapshot] = useState<ReturnType<typeof calculateDUnitGoalRoute> | null>(null)
+export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerState,go }: {t:Record<string,string>;lang:Lang;objective:ProgressionObjective;progress:DUnitProgress;toggle:(setId:string,conditionId:string,checked:boolean)=>void;playerState:DUnitPlayerState;go:()=>void}) {
+  const t:Record<string,string>={...copy,dunitMarkDone:copy.ppMarkDone,dunitSearchNoCandidates:copy.ppNoSearch,dunitProjectedTotal:copy.ppProjected,dunitIdentityPending:copy.ppIdentity}
+  const options = useMemo(() => progressionDUnitOptions(objective), [objective])
+  const [selectedKey,setSelectedKey]=useState<DUnitBonusKey|''>('')
+  const key=objective==='Dano habilidade'?selectedKey:(options[0]?.key??'')
+  const [draft,setDraft]=useState('')
+  type Snapshot=ReturnType<typeof calculateDUnitGoalRoute>&{source:DUnitProgress;playerSource:DUnitPlayerState;draft:string;key:string}
+  const [storedSnapshot,setSnapshot]=useState<Snapshot|null>(null)
+  const [invalidated,setInvalidated]=useState(false)
+  const [confirmation,setConfirmation]=useState('')
+  const [attempted,setAttempted]=useState(false)
+  const inputRef=useRef<HTMLInputElement>(null),typeRef=useRef<HTMLSelectElement>(null),statusRef=useRef<HTMLDivElement>(null)
+  const pendingRegistrations=useRef(new Set<string>())
+  const unit=progressionUnit(objective,'dunit'),parsed=parseProgressionTarget(draft,unit,'dunit')
+  const locale={pt:'pt-BR',en:'en-US',es:'es',ko:'ko-KR'}[lang]
+  const number=(value:number)=>value.toLocaleString(locale,{maximumFractionDigits:2})
+  const objectiveLabelKey=progressionObjectiveLabelKey(objective)
+  const objectiveLabel=objectiveLabelKey?t[objectiveLabelKey]:objective
+  const qualifier=options.find(option=>option.key===key)?.qualifier??''
+  const selectedLabel=[objectiveLabel,qualifier?t[progressionSubtypeLabelKey(qualifier)]??qualifier:'',`(${unit==='percent'?'%':t.ppPoints})`].filter(Boolean).join(' ')
+  const valueLabel=(value:number)=>`+${number(value)} ${selectedLabel}`
+  const invalidate=()=>{if(storedSnapshot){setInvalidated(true);setSnapshot(null)}setComparison([]);setCandidateQuery('');setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE)}
+  const snapshot=storedSnapshot&&storedSnapshot.source===progress&&storedSnapshot.playerSource===playerState&&storedSnapshot.draft===draft&&storedSnapshot.key===key?storedSnapshot:null
   const [candidateQuery, setCandidateQuery] = useState('')
   const [visibleRouteCount, setVisibleRouteCount] = useState(DUNIT_ROUTE_PAGE_SIZE)
   const [comparison, setComparison] = useState<RouteLike[]>([])
-  const calculate = () => { setSnapshot(calculateDUnitGoalRoute(progress, key, goal, playerState)); setComparison([]); setCandidateQuery(''); setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE) }
-  useEffect(() => { setComparison([]) }, [key, goal, progress])
-  const selectedLabel = options.find(option => option.key === key)?.label ?? ''
+  const calculate=()=>{
+    setAttempted(true)
+    if(!key){typeRef.current?.focus();return}
+    if(!parsed.ok){inputRef.current?.focus();return}
+    setSnapshot({...calculateDUnitGoalRoute(progress,key,parsed.value,playerState),source:progress,playerSource:playerState,draft,key});setInvalidated(false);setConfirmation('');setComparison([]);setCandidateQuery('');setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE);pendingRegistrations.current.clear()
+  }
+  useEffect(()=>{if(storedSnapshot&&(storedSnapshot.source!==progress||storedSnapshot.playerSource!==playerState))invalidate()},[progress,playerState])
+  const start=useMemo(()=>({bonus:key?aggregateDUnitBonuses(progress)[key]??0:0,count:key?dUnitSets.flatMap(set=>set.conditions).filter(condition=>bonusKey(condition)===key&&isDUnitConditionCompleted(progress,condition)).length:0}),[progress,key])
+  const register=(setId:string,conditionId:string)=>{if(!snapshot||pendingRegistrations.current.has(conditionId))return;pendingRegistrations.current.add(conditionId);setConfirmation('ppConditionRecorded');invalidate();toggle(setId,conditionId,true);statusRef.current?.focus()}
   const routes = useMemo(() => snapshot ? filterDUnitCandidateRoutes(snapshot, candidateQuery) : [], [candidateQuery, snapshot])
   const visibleRoutes=routes.slice(0,visibleRouteCount)
   const compared = comparison
   const toggleComparison = (route: RouteLike) => setComparison(current => current.some(item => dUnitRouteSignature(item) === dUnitRouteSignature(route)) ? current.filter(item => dUnitRouteSignature(item) !== dUnitRouteSignature(route)) : [...current, route])
   const removeComparison = (route: RouteLike) => setComparison(current => current.filter(item => dUnitRouteSignature(item) !== dUnitRouteSignature(route)))
   return <>
-    <PageHead eyebrow="D-UNIT" title={t.goalTitle} text={t.dunitGoalText}/>
-    <section className="goal-tip"><img src={tipMascotUrl}/><div>{t.dunitGoalTip}<button className="quiet" onClick={()=>Array.from(document.querySelectorAll('nav button')).find(button=>button.textContent?.includes(t.dunitCodex))?.dispatchEvent(new MouseEvent('click',{bubbles:true}))}>{t.dunitGoToCodex}</button></div></section>
+    <div className="progression-start"><h2>{t.ppStart} · D-Unit</h2><p>{t.ppRecorded}</p>{key&&<><dl><div><dt>{t.ppCurrent}</dt><dd>{valueLabel(start.bonus)}</dd></div><div><dt>{t.ppCompleted}</dt><dd>{number(start.count)}</dd></div></dl>{!start.count&&<p>{t.ppNone}</p>}</>}<button className="quiet" onClick={go}>{t.ppUpdateDUnit}</button></div>
+    <div ref={statusRef} tabIndex={-1} role="status" className="progression-status">{confirmation&&t[confirmation]}{invalidated&&<p>{t.ppRecalculate}</p>}</div>
     <section className="planner">
-      <div className="control-panel">
-        <label>{t.attribute}<select value={key} onChange={event => setKey(event.target.value as DUnitBonusKey)}>{options.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
-        <label>{t.dunitAdditionalTarget}<NumericInput value={goal} min={1} onValue={setGoal}/></label>
-        <button className="primary" onClick={calculate}>{t.calculate}</button>
-      </div>
+      <form className="control-panel" noValidate onSubmit={event=>{event.preventDefault();calculate()}}>
+        {objective==='Dano habilidade'&&<><label htmlFor="dunit-type">{t.ppType}</label><select id="dunit-type" ref={typeRef} value={key} aria-invalid={attempted&&!key} aria-describedby="dunit-type-error" onChange={event=>{invalidate();setSelectedKey(event.target.value as DUnitBonusKey)}}><option value="">{t.ppChooseType}</option>{options.map(option=><option key={option.key} value={option.key}>{t[progressionSubtypeLabelKey(option.qualifier)]??option.qualifier}</option>)}</select><small id="dunit-type-error" className="progression-error">{attempted&&!key?t.ppTypeError:''}</small></>}
+        <label htmlFor="dunit-target">{progressionText(t.ppTarget,{attribute:selectedLabel})}</label><input id="dunit-target" ref={inputRef} type="text" inputMode={unit==='percent'?'decimal':'numeric'} placeholder={unit==='percent'?'1,25':'500'} value={draft} aria-invalid={!parsed.ok&&(attempted||Boolean(draft))} aria-describedby="dunit-target-help dunit-target-error" onChange={event=>{invalidate();setDraft(event.target.value)}}/><small id="dunit-target-help">{selectedLabel}{unit==='percent'&&` · ${t.ppPercentHint}`}</small><small id="dunit-target-error" className="progression-error">{!parsed.ok&&(attempted||Boolean(draft))?t[parsed.error]:''}</small>
+        <button type="submit" className="primary">{t.ppCalculateDUnit}</button>
+      </form>
       <div className="plan-output">
-        <span className="eyebrow">{t.dunitPossibleRoutes}</span>
-        {!snapshot ? <div className="empty">{t.calculateRouteHint}</div> : snapshot.maximum < snapshot.target ? <div className="empty">{t.dunitPendingInsufficient} {snapshot.maximum} {selectedLabel}</div> : <>
+        <span className="eyebrow">{t.ppCandidates}</span>
+        {!snapshot ? <div className="empty">{t.ppReady}</div> : snapshot.maximum < snapshot.target ? <div className="empty">{snapshot.maximum===0?t.ppNoOptions:progressionText(t.ppDUnitInsufficient,{maximum:valueLabel(snapshot.maximum),target:valueLabel(snapshot.target)})}</div> : <>
+          <p>{t.ppCostNotice}</p><details className="progression-limit"><summary>{t.details}</summary><p>{t.ppInventoryNotice}</p><p>{t.ppObtainment}</p></details>
           <div className="dunit-goal-header"><span>{t.attribute}: <b>{selectedLabel}</b></span><span>{t.dunitRequestedAdditional}: <b>+{snapshot.target} {selectedLabel}</b></span><span>{t.dunitCurrentBonus}: <b>+{snapshot.current} {selectedLabel}</b></span><span>{t.dunitProjectedTotal}: <b>+{snapshot.current + snapshot.totalGain} {selectedLabel}</b></span></div>
           <div className="dunit-candidate-browser">
             <label>{t.dunitSearchRoutes}<input value={candidateQuery} onChange={event=>{setCandidateQuery(event.target.value);setVisibleRouteCount(DUNIT_ROUTE_PAGE_SIZE)}} placeholder={t.dunitSearchRoutes}/><small>{t.dunitSearchHint}</small></label>
             <small>{candidateQuery ? `${visibleRoutes.length}/${routes.length} ${t.dunitRoutesFound}` : `${visibleRoutes.length}/${routes.length} ${t.dunitRouteCandidates}`}</small>
           </div>
-          {routes.length===0 ? <div className="empty dunit-search-empty"><b>{t.dunitSearchNoCandidates}</b><small>{t.dunitSearchNoCandidatesHint}</small></div> : <div className="dunit-routes-list">{visibleRoutes.map((route,index) => <RouteCard key={dUnitRouteSignature(route)} route={route} index={index} progress={progress} playerState={playerState} selected={comparison.some(item => dUnitRouteSignature(item) === dUnitRouteSignature(route))} onSelect={() => toggleComparison(route)} onComplete={(setId,conditionId)=>toggle(setId,conditionId,true)} t={t} selectedLabel={selectedLabel} currentBonus={snapshot.current}/>)}</div>}
+          {routes.length===0 ? <div className="empty dunit-search-empty"><b>{t.dunitSearchNoCandidates}</b></div> : <div className="dunit-routes-list">{visibleRoutes.map((route,index) => <RouteCard key={dUnitRouteSignature(route)} route={route} index={index} progress={progress} playerState={playerState} selected={comparison.some(item => dUnitRouteSignature(item) === dUnitRouteSignature(route))} onSelect={() => toggleComparison(route)} onComplete={register} t={t} selectedLabel={selectedLabel} currentBonus={snapshot.current}/>)}</div>}
           {routes.length>visibleRouteCount&&<button className="quiet dunit-load-more" onClick={()=>setVisibleRouteCount(value=>value+DUNIT_ROUTE_PAGE_SIZE)}>{t.dunitLoadMore}</button>}
           <RouteComparison routes={compared} t={t} selectedLabel={selectedLabel} progress={progress} playerState={playerState} onRemove={removeComparison} onClear={()=>setComparison([])}/>
         </>}

@@ -9,7 +9,7 @@ import type { Attribute } from '../types'
 import type { Lang } from '../App'
 
 const attributes: Attribute[] = ['AT', 'HT', 'CT', 'HP', 'DS', 'DE', 'BL', 'EV']
-export type TamerDestination = 'codex' | 'dunit' | 'mySeals' | 'myDUnit'
+export type TamerDestination = 'codex' | 'dunit' | 'mySeals' | 'myDUnit' | 'goal'
 
 export function MyTamer({ t, lang, sealStates, progress, navigate }: {
   t: Record<string, string>; lang: Lang; sealStates: SealStateMap; progress: DUnitProgress;
@@ -22,6 +22,7 @@ export function MyTamer({ t, lang, sealStates, progress, navigate }: {
   const actions = <div className="tamer-actions"><button className="quiet" onClick={() => navigate('codex')}>{t.tamerRegisterSeals}</button><button className="quiet" onClick={() => navigate('dunit')}>{t.tamerRegisterDUnit}</button></div>
   return <>
     <PageHead eyebrow="LADMO CODEX" title={t.myTamer} text={t.tamerIntro}/>
+    <div className="tamer-actions"><button className="quiet" onClick={() => navigate('goal')}>{t.ppTamerCTA}</button></div>
     <div className="tamer-page">
       <section className="tamer-panel" aria-labelledby="tamer-recorded"><h2 id="tamer-recorded">{t.tamerRecorded}</h2><p>{t.tamerNotice}</p>
         {summary.hasProgress ? <dl className="tamer-stats"><div><dt>{t.tamerOwned}</dt><dd>{number(summary.seals.owned)} <small>/ {number(summary.seals.total)}</small></dd><small>{t.tamerCollection}: {percent(summary.seals.owned, summary.seals.total)}</small></div><div><dt>{t.tamerConditions}</dt><dd>{number(summary.dUnit.completed)} <small>/ {number(summary.dUnit.totalConditions)}</small></dd><small>{percent(summary.dUnit.completed, summary.dUnit.totalConditions)}</small></div></dl>

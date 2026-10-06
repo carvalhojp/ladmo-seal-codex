@@ -1,94 +1,84 @@
-import { useRef, useState } from 'react'
-import { CircleHelp, Coins, Sparkles, Ticket } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { seals } from '../data/seals'
 import type { Attribute } from '../types'
-import { formatValue } from '../utils/calculations'
+import { formatValue, levelFor } from '../utils/calculations'
 import { optimizeGoal, optimizeGoalWithTicketLimit, type GoalPlan, type GoalStrategy, type SealProgressInput, type TicketBudgetResult } from '../utils/goalOptimizer'
-import { getSealState } from '../utils/sealState'
-import { NumericInput } from './NumericInput'
-import { PageHead } from './PageHead'
+import { getSealState, toOwnedSeals, type SealStateMap } from '../utils/sealState'
+import { calculateAttributeTotals } from '../utils/dashboard'
+import { parseProgressionBudget, parseProgressionTarget, plannerResultIsCurrent, progressionText, progressionUnit } from '../utils/progressionPlanner'
 import { localizedSealName } from '../data/localizedSealNames'
 import type { Lang } from '../App'
-import tipMascotUrl from '../assets/gabumon-tip.png'
 
-const attributes: Attribute[] = ['AT','HP','DS','DE','HT','CT','BL','EV']
 export const goalPlannerRegistrationTab = 'codex'
-
-/** Produces a display-only route from the real state at the instant the user requests it. */
 export function createGoalPlanSnapshot(attribute: Attribute, goal: number, mode: GoalStrategy, progressById: Record<string, SealProgressInput>): GoalPlan | null {
   return optimizeGoal(attribute, goal, seals, progressById, mode)
 }
-
 type PlannerStrategy = GoalStrategy | 'ticketLimit'
-interface DisplaySnapshot extends TicketBudgetResult { attribute: Attribute; goal: number; ticketBudget?: number }
+interface DisplaySnapshot extends TicketBudgetResult { attribute: Attribute; goal: number; ticketBudget?: number; source:SealStateMap; draft:string }
 
-export function GoalPlanner({ t, lang, state, go, addRecommendation, ticketBudget: initialTicketBudget }: {
-  t: any
-  lang: Lang
-  state: (id: string) => ReturnType<typeof getSealState>
-  go: (tab: any) => void
-  addRecommendation: (sealId: string, additionalQuantity: number) => void
-  ticketBudget?: number
+export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ticketBudget:initialTicketBudget}:{
+  t:Record<string,string>;lang:Lang;attribute:Attribute;sealStates:SealStateMap;go:(tab:'codex')=>void;
+  addRecommendation:(sealId:string,additionalQuantity:number)=>void;ticketBudget?:number;
 }) {
-  const [attribute, setAttribute] = useState<Attribute>('AT')
-  const [goal, setGoal] = useState(1000)
-  const [mode, setMode] = useState<PlannerStrategy>('cheap')
-  const [ticketBudget, setTicketBudget] = useState(() => Math.max(0, Math.trunc(initialTicketBudget ?? 0)))
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null)
-  const [hasCalculated, setHasCalculated] = useState(false)
-  const [addedSealIds, setAddedSealIds] = useState<Set<string>>(() => new Set())
-  const pendingAdditions = useRef(new Set<string>())
-
-  const calculate = () => {
-    const progressById = Object.fromEntries(seals.map(seal => {
-      const current = state(seal.id)
-      return [seal.id, { quantity: current.quantity, doNotRecommend: current.doNotRecommend }]
-    }))
-    const budgetResult = mode === 'ticketLimit'
-      ? optimizeGoalWithTicketLimit(attribute, goal, seals, progressById, ticketBudget)
-      : { plan: createGoalPlanSnapshot(attribute, goal, mode, progressById), bestWithinBudget: null, additionalTicketsNeeded: null }
-    setSnapshot({ ...budgetResult, attribute, goal, ticketBudget: mode === 'ticketLimit' ? ticketBudget : undefined })
-    setHasCalculated(true)
-    setAddedSealIds(new Set())
-    pendingAdditions.current.clear()
+  const [draft,setDraft]=useState('')
+  const [mode,setMode]=useState<PlannerStrategy>('cheap')
+  const [budgetDraft,setBudgetDraft]=useState(String(Math.max(0,Math.trunc(initialTicketBudget??0))))
+  const [snapshot,setSnapshot]=useState<DisplaySnapshot|null>(null)
+  const [invalidated,setInvalidated]=useState(false)
+  const [confirmation,setConfirmation]=useState('')
+  const [attempted,setAttempted]=useState(false)
+  const inputRef=useRef<HTMLInputElement>(null),budgetRef=useRef<HTMLInputElement>(null),statusRef=useRef<HTMLDivElement>(null)
+  const pendingAdditions=useRef(new Set<string>())
+  const unit=progressionUnit(attribute,'seals')
+  const parsed=parseProgressionTarget(draft,unit,'seals'),budget=parseProgressionBudget(budgetDraft)
+  const locale={pt:'pt-BR',en:'en-US',es:'es',ko:'ko-KR'}[lang]
+  const number=(value:number)=>value.toLocaleString(locale)
+  const unitLabel=`${attribute} (${unit==='percent'?'%':t.ppPoints})`
+  const invalidate=()=>{if(snapshot){setInvalidated(true);setSnapshot(null)}}
+  const currentSnapshot=plannerResultIsCurrent(snapshot,sealStates,draft)?snapshot:null
+  useEffect(()=>{if(snapshot&&snapshot.source!==sealStates)invalidate()},[sealStates])
+  const start=useMemo(()=>{
+    const owned=toOwnedSeals(sealStates)
+    return {bonus:calculateAttributeTotals(owned,seals)[attribute],count:owned.filter(item=>{const seal=seals.find(s=>s.id===item.sealId);return seal?.attribute===attribute&&Boolean(levelFor(item.quantity,seal))}).length}
+  },[attribute,sealStates])
+  const strategyHelp={cheap:t.ppCheapHelp,openers:t.ppOpenersHelp,value:t.ppBalancedHelp,ticketLimit:t.ppLimitHelp}[mode]
+  const calculate=()=>{
+    setAttempted(true)
+    if(!parsed.ok){inputRef.current?.focus();return}
+    if(mode==='ticketLimit'&&budget===null){budgetRef.current?.focus();return}
+    const progressById=Object.fromEntries(seals.map(seal=>{const current=getSealState(sealStates,seal.id);return [seal.id,{quantity:current.quantity,doNotRecommend:current.doNotRecommend}]}))
+    const result=mode==='ticketLimit'?optimizeGoalWithTicketLimit(attribute,parsed.value,seals,progressById,budget!):{plan:createGoalPlanSnapshot(attribute,parsed.value,mode,progressById),bestWithinBudget:null,additionalTicketsNeeded:null}
+    setSnapshot({...result,attribute,goal:parsed.value,ticketBudget:mode==='ticketLimit'?budget!:undefined,source:sealStates,draft})
+    setInvalidated(false);setConfirmation('');pendingAdditions.current.clear()
   }
-
-  const add = (sealId: string, additionalQuantity: number) => {
-    if (addedSealIds.has(sealId) || pendingAdditions.current.has(sealId)) return
-    pendingAdditions.current.add(sealId)
-    addRecommendation(sealId, additionalQuantity)
-    setAddedSealIds(previous => new Set(previous).add(sealId))
+  const register=(id:string,quantity:number)=>{
+    if(!currentSnapshot||pendingAdditions.current.has(id))return
+    pendingAdditions.current.add(id);setConfirmation('ppRegistered');invalidate();addRecommendation(id,quantity)
+    statusRef.current?.focus()
   }
-
-  return <>
-    <PageHead eyebrow={t.goalEyebrow} title={t.goalTitle} text={t.goalText}/>
-    <section className="goal-tip"><img src={tipMascotUrl}/><div>{t.goalTip}<button className="quiet" onClick={() => go(goalPlannerRegistrationTab)}>{t.goToMine}</button></div></section>
+  return <section className="progression-system" aria-label="Seal Master">
+    <div className="progression-start"><h2>{t.ppStart} · Seal Master</h2><p>{t.ppRecorded}</p><dl><div><dt>{t.ppCurrent}</dt><dd>{formatValue(start.bonus,attribute,locale)}</dd></div><div><dt>{t.ppContributing}</dt><dd>{number(start.count)}</dd></div></dl>{!start.count&&<p>{t.ppNone}</p>}<button className="quiet" onClick={()=>go('codex')}>{t.ppUpdateSeals}</button></div>
+    <div ref={statusRef} tabIndex={-1} role="status" className="progression-status">{confirmation&&t[confirmation]}{invalidated&&<p>{t.ppRecalculate}</p>}</div>
     <section className="planner">
-      <div className="control-panel">
-        <label>{t.target}<select value={attribute} onChange={e => setAttribute(e.target.value as Attribute)}>{attributes.map(a => <option key={a}>{a}</option>)}</select></label>
-        <label>{t.goalFor} {attribute}<NumericInput value={goal} min={1} onValue={setGoal}/></label>
-        <label>{t.strategy}<select value={mode} onChange={e => setMode(e.target.value as PlannerStrategy)}><option value="cheap">{t.cheapestTickets}</option><option value="openers">{t.fewerOpeners}</option><option value="value">{t.bestValue}</option><option value="ticketLimit">{t.ticketLimitStrategy}</option></select></label>
-        {mode === 'ticketLimit' && <label>{t.availableTickets}<NumericInput value={ticketBudget} min={0} onValue={setTicketBudget}/></label>}
-        <button className="primary calculate-route" onClick={calculate}>{t.calculate}</button>
-        <p><CircleHelp size={16}/>{t.incrementalHint}</p>
-      </div>
-      <div className="plan-output">
-        <span className="eyebrow">{t.suggestedRoute}</span>
-        {!hasCalculated ? <div className="empty">{t.calculateRouteHint}</div> : snapshot?.plan ? <>
-          <h2>{formatValue(snapshot.plan.totalBonus, snapshot.attribute)} <small>{t.ofGoal} {formatValue(snapshot.goal, snapshot.attribute)}</small></h2>
-          <div className="plan-stats"><span><Ticket/> {snapshot.plan.totalTickets} {t.tickets}</span><span><Coins/> {snapshot.plan.totalAdditionalSeals} {t.newSeals}</span><span><Sparkles/> {snapshot.plan.totalOpeners} {t.openers}</span></div>
-          {snapshot.ticketBudget !== undefined && <div className="plan-stats budget-stats"><span>{t.ticketsAvailable}: {snapshot.ticketBudget}</span><span>{t.ticketsUsed}: {snapshot.plan.totalTickets}</span><span>{t.ticketsRemaining}: {snapshot.ticketBudget - snapshot.plan.totalTickets}</span></div>}
-          {snapshot.plan.recommendations.map(item => {
-            const added = addedSealIds.has(item.seal.id)
-            return <div className="plan-row" key={item.seal.id}>
-              <span className={'attr ' + item.seal.attribute}>{item.seal.attribute}</span>
-              <div><b>{localizedSealName(item.seal, lang)}</b><small>{item.levelLabel} · {t.current}: {item.finalQuantity - item.additionalSeals} · {t.destination}: {item.finalQuantity.toLocaleString()} · {t.needed}: {item.additionalSeals.toLocaleString()} · {t.gain} {formatValue(item.bonusGain, item.seal.attribute)}</small></div>
-              <strong>{item.tickets} <small>{t.tickets} · {item.openers} OP</small></strong>
-              <button className="quiet recommendation-add" disabled={added} onClick={() => add(item.seal.id, item.additionalSeals)}>{added ? t.recommendationAdded : t.addRecommended}</button>
-            </div>
-          })}
-        </> : snapshot?.ticketBudget !== undefined ? <div className="empty"><p>{t.noTicketBudgetPlan}</p>{snapshot.bestWithinBudget && <p>{t.bestGainWithinBudget}: <b>{formatValue(snapshot.bestWithinBudget.totalBonus, snapshot.attribute)}</b></p>}{snapshot.additionalTicketsNeeded !== null && <p>{t.additionalTicketsNeeded}: <b>{snapshot.additionalTicketsNeeded}</b></p>}</div> : <div className="empty">{t.noGoalPlan}</div>}
+      <form className="control-panel" noValidate onSubmit={event=>{event.preventDefault();calculate()}}>
+        <label htmlFor="seal-target">{progressionText(t.ppTarget,{attribute:unitLabel})}</label>
+        <input id="seal-target" ref={inputRef} type="text" inputMode={unit==='percent'?'decimal':'numeric'} value={draft} placeholder={unit==='percent'?'1,25':'500'} aria-invalid={!parsed.ok&&(attempted||Boolean(draft))} aria-describedby="seal-target-help seal-target-error" onChange={event=>{invalidate();setDraft(event.target.value)}}/>
+        <small id="seal-target-help">{unitLabel}{unit==='percent'&&` · ${t.ppPercentHint}`}</small>
+        <small id="seal-target-error" className="progression-error">{!parsed.ok&&(attempted||Boolean(draft))?t[parsed.error]:''}</small>
+        <label htmlFor="seal-strategy">{t.strategy}</label><select id="seal-strategy" value={mode} onChange={event=>{invalidate();setMode(event.target.value as PlannerStrategy)}}><option value="cheap">{t.ppCheap}</option><option value="openers">{t.ppOpeners}</option><option value="value">{t.ppBalanced}</option><option value="ticketLimit">{t.ppLimit}</option></select>
+        <small>{strategyHelp}</small>{(mode==='openers'||mode==='value')&&<details><summary>{t.details}</summary><small>{t.ppWeightHelp}</small></details>}
+        {mode==='ticketLimit'&&<><label htmlFor="seal-budget">{t.ppBudget}</label><input id="seal-budget" ref={budgetRef} type="text" inputMode="numeric" value={budgetDraft} aria-describedby="seal-budget-help seal-budget-error" aria-invalid={budget===null} onChange={event=>{invalidate();setBudgetDraft(event.target.value)}}/><small id="seal-budget-help">{t.ppBudgetHelp}</small><small id="seal-budget-error" className="progression-error">{budget===null?t.ppBudgetError:''}</small></>}
+        <button type="submit" className="primary calculate-route">{t.ppCalculateSeal}</button>
+      </form>
+      <div className="plan-output" aria-live="polite"><span className="eyebrow">{t.ppRoute}</span>
+        {!currentSnapshot?<div className="empty">{t.ppReady}</div>:currentSnapshot.plan?<>
+          <h2>{progressionText(t.ppSuccess,{gain:formatValue(currentSnapshot.plan.totalBonus,attribute,locale),target:formatValue(currentSnapshot.goal,attribute,locale)})}</h2>
+          <div className="plan-stats"><span>{t.ppTickets}: {number(currentSnapshot.plan.totalTickets)}</span><span>{t.newSeals}: {number(currentSnapshot.plan.totalAdditionalSeals)}</span><span>{t.ppOpenersNeeded}: {number(currentSnapshot.plan.totalOpeners)}</span></div><p>{t.ppOpenersNotice}</p>
+          {currentSnapshot.ticketBudget!==undefined&&<div className="plan-stats"><span>{t.ppBudgetDeclared}: {number(currentSnapshot.ticketBudget)}</span><span>{t.ppMargin}: {number(currentSnapshot.ticketBudget-currentSnapshot.plan.totalTickets)}</span></div>}
+          <h3>{t.ppUpdate}</h3><p>{t.ppRegisterHelp}</p>
+          {currentSnapshot.plan.recommendations.map(item=><div className="plan-row" key={item.seal.id}><span className={'attr '+attribute}>{attribute}</span><div><b>{localizedSealName(item.seal,lang)}</b><small>{item.levelLabel} · {t.current}: {number(item.finalQuantity-item.additionalSeals)} · {t.destination}: {number(item.finalQuantity)} · {t.needed}: {number(item.additionalSeals)} · {t.gain} {formatValue(item.bonusGain,attribute,locale)}</small></div><strong>{number(item.tickets)} <small>{t.tickets} · {number(item.openers)} OP</small></strong><button className="quiet recommendation-add" onClick={()=>register(item.seal.id,item.additionalSeals)}>{progressionText(t.ppRegister,{quantity:number(item.additionalSeals)})}</button></div>)}
+        </>:<div className="empty">{currentSnapshot.ticketBudget!==undefined?<><p>{t.ppBudgetInsufficient}</p>{currentSnapshot.bestWithinBudget&&<p>{progressionText(t.ppPartial,{gain:formatValue(currentSnapshot.bestWithinBudget.totalBonus,attribute,locale)})}</p>}{currentSnapshot.additionalTicketsNeeded!==null&&<p>{t.additionalTicketsNeeded}: {number(currentSnapshot.additionalTicketsNeeded)}</p>}</>:t.ppSealInsufficient}</div>}
       </div>
     </section>
-  </>
+  </section>
 }
