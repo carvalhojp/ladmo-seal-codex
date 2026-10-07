@@ -16,11 +16,12 @@ export function createGoalPlanSnapshot(attribute: Attribute, goal: number, mode:
 type PlannerStrategy = GoalStrategy | 'ticketLimit'
 interface DisplaySnapshot extends TicketBudgetResult { attribute: Attribute; goal: number; ticketBudget?: number; source:SealStateMap; draft:string; mode:PlannerStrategy; budgetDraft:string }
 
-export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ticketBudget:initialTicketBudget}:{
+export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ticketBudget:initialTicketBudget,initialDraft}:{
+  initialDraft?:string;
   t:Record<string,string>;lang:Lang;attribute:Attribute;sealStates:SealStateMap;go:(tab:'codex')=>void;
   addRecommendation:(sealId:string,additionalQuantity:number)=>void;ticketBudget?:number;
 }) {
-  const [draft,setDraft]=useState('')
+  const [draft,setDraft]=useState(initialDraft??'')
   const [mode,setMode]=useState<PlannerStrategy>('cheap')
   const [budgetDraft,setBudgetDraft]=useState(String(Math.max(0,Math.trunc(initialTicketBudget??0))))
   const [snapshot,setSnapshot]=useState<DisplaySnapshot|null>(null)

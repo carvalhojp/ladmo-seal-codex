@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { TamerGoals, type TamerGoalsProps } from './TamerGoals'
 import { PageHead } from './PageHead'
 import { summarizeMyTamer } from '../utils/myTamer'
 import { formatValue } from '../utils/calculations'
@@ -11,8 +12,9 @@ import type { Lang } from '../App'
 const attributes: Attribute[] = ['AT', 'HT', 'CT', 'HP', 'DS', 'DE', 'BL', 'EV']
 export type TamerDestination = 'codex' | 'dunit' | 'mySeals' | 'myDUnit' | 'goal'
 
-export function MyTamer({ t, lang, sealStates, progress, navigate }: {
+export function MyTamer({ t, lang, sealStates, progress, navigate, goalsProps }: {
   t: Record<string, string>; lang: Lang; sealStates: SealStateMap; progress: DUnitProgress;
+  goalsProps?: Pick<TamerGoalsProps,'state'|'blocked'|'save'|'plan'|'viewSet'>;
   navigate: (destination: TamerDestination) => void;
 }) {
   const summary = useMemo(() => summarizeMyTamer(sealStates, progress), [sealStates, progress])
@@ -24,6 +26,7 @@ export function MyTamer({ t, lang, sealStates, progress, navigate }: {
     <PageHead eyebrow="LADMO CODEX" title={t.myTamer} text={t.tamerIntro}/>
     <div className="tamer-actions"><button className="quiet" onClick={() => navigate('goal')}>{t.ppTamerCTA}</button></div>
     <div className="tamer-page">
+      {goalsProps && <TamerGoals {...goalsProps} t={t} lang={lang} sealStates={sealStates} progress={progress}/>}
       <section className="tamer-panel" aria-labelledby="tamer-recorded"><h2 id="tamer-recorded">{t.tamerRecorded}</h2><p>{t.tamerNotice}</p>
         {summary.hasProgress ? <dl className="tamer-stats"><div><dt>{t.tamerOwned}</dt><dd>{number(summary.seals.owned)} <small>/ {number(summary.seals.total)}</small></dd><small>{t.tamerCollection}: {percent(summary.seals.owned, summary.seals.total)}</small></div><div><dt>{t.tamerConditions}</dt><dd>{number(summary.dUnit.completed)} <small>/ {number(summary.dUnit.totalConditions)}</small></dd><small>{percent(summary.dUnit.completed, summary.dUnit.totalConditions)}</small></div></dl>
           : <div className="tamer-empty"><h3>{t.tamerEmpty}</h3><p>{t.tamerEmptyHint}</p>{actions}</div>}

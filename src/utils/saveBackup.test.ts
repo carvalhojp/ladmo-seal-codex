@@ -1,3 +1,4 @@
+import { emptyTamerGoals } from './tamerGoals'
 import { describe, expect, it } from 'vitest'
 import { dUnitSets } from '../data/dUnitAudit'
 import { seals } from '../data/seals'
@@ -6,7 +7,7 @@ import { applyLadmoSave, createLadmoSave, parseLadmoSave, saveFormat, saveVersio
 const sealId = 'seal-16709'
 const set = dUnitSets[0]
 const conditionId = set.conditions[0].id
-const source = () => createLadmoSave({ exportedAt:'2026-10-04T12:00:00.000Z', data:{ seals:{[sealId]:{quantity:50,hasSeal:true,doNotRecommend:false}}, dUnitProgress:{[set.id]:{[conditionId]:true}}, dUnitInventory:{quantumon:{owned:true,level:130}} }, preferences:{language:'pt'} })
+const source = () => createLadmoSave({ exportedAt:'2026-10-04T12:00:00.000Z', data:{goals:emptyTamerGoals(), seals:{[sealId]:{quantity:50,hasSeal:true,doNotRecommend:false}}, dUnitProgress:{[set.id]:{[conditionId]:true}}, dUnitInventory:{quantumon:{owned:true,level:130}} }, preferences:{language:'pt'} })
 const storage = (values:Record<string,string> = {}, failKey?:string) => ({
   getItem:(key:string)=>values[key] ?? null,
   setItem:(key:string,value:string)=>{if(key===failKey)throw new Error('write failed');values[key]=value},
@@ -26,12 +27,12 @@ describe('LADMO Codex Save v1', () => {
   it('rejects malformed JSON, a wrong format/version, or missing required structures', () => {
     expect(parseLadmoSave('{')).toMatchObject({ok:false,error:'invalidJson'})
     expect(parseLadmoSave(JSON.stringify({...source(),format:'other'}))).toMatchObject({ok:false,error:'invalidFormat'})
-    expect(parseLadmoSave(JSON.stringify({...source(),version:2}))).toMatchObject({ok:false,error:'unsupportedVersion'})
-    expect(parseLadmoSave(JSON.stringify({format:saveFormat,version:1,exportedAt:'not-a-date',data:{},preferences:{language:'pt'}}))).toMatchObject({ok:false,error:'invalidStructure'})
+    expect(parseLadmoSave(JSON.stringify({...source(),version:999}))).toMatchObject({ok:false,error:'unsupportedVersion'})
+    expect(parseLadmoSave(JSON.stringify({format:saveFormat,version:1,exportedAt:'not-a-date',data:{goals:emptyTamerGoals(),},preferences:{language:'pt'}}))).toMatchObject({ok:false,error:'invalidStructure'})
   })
 
   it('keeps known records, drops unknown records, and reports their count', () => {
-    const raw={...source(),data:{seals:{[sealId]:{quantity:50,hasSeal:true},unknown:{quantity:1}},dUnitProgress:{[set.id]:{[conditionId]:true,unknown:true},'dunit-unknown':{x:true}},dUnitInventory:{quantumon:{owned:true},unknown:{owned:true}}}}
+    const raw={...source(),data:{goals:emptyTamerGoals(),seals:{[sealId]:{quantity:50,hasSeal:true},unknown:{quantity:1}},dUnitProgress:{[set.id]:{[conditionId]:true,unknown:true},'dunit-unknown':{x:true}},dUnitInventory:{quantumon:{owned:true},unknown:{owned:true}}}}
     const result=parseLadmoSave(JSON.stringify(raw))
     expect(result.ok).toBe(true)
     if(result.ok){expect(result.save.data.seals[sealId]?.quantity).toBe(50);expect(result.save.data.dUnitProgress).toEqual({[set.id]:{[conditionId]:true}});expect(result.save.data.dUnitInventory).toEqual({quantumon:{owned:true,evolutionUnlocked:false,transcended:false}});expect(result.preview.ignoredRecords).toBe(4)}
@@ -40,14 +41,14 @@ describe('LADMO Codex Save v1', () => {
   it('counts owned Seals for the preview instead of every saved card state', () => {
     const states=Object.fromEntries(seals.slice(0,39).map(seal=>[seal.id,{quantity:0,hasSeal:false,doNotRecommend:false}]))
     Object.assign(states,{[seals[0].id]:{quantity:3000,hasSeal:true,doNotRecommend:false},[seals[1].id]:{quantity:3000,hasSeal:true,doNotRecommend:false},[seals[2].id]:{quantity:3000,hasSeal:true,doNotRecommend:false},[seals[3].id]:{quantity:0,hasSeal:false,doNotRecommend:true}})
-    const result=parseLadmoSave(JSON.stringify({...source(),data:{seals:states,dUnitProgress:{[set.id]:{[conditionId]:true}},dUnitInventory:{}}}))
+    const result=parseLadmoSave(JSON.stringify({...source(),data:{goals:emptyTamerGoals(),seals:states,dUnitProgress:{[set.id]:{[conditionId]:true}},dUnitInventory:{}}}))
     expect(Object.keys(states)).toHaveLength(39)
     expect(result.ok).toBe(true)
     if(result.ok) expect(result.preview.seals).toBe(3)
   })
 
   it('preserves the supported historical Seal and D-Unit inventory aliases', () => {
-    const raw={...source(),data:{seals:{'seal-22829':{quantity:75,hasSeal:true}},dUnitProgress:{},dUnitInventory:{'omegamon-x-supremacy':{owned:true}}}}
+    const raw={...source(),data:{goals:emptyTamerGoals(),seals:{'seal-22829':{quantity:75,hasSeal:true}},dUnitProgress:{},dUnitInventory:{'omegamon-x-supremacy':{owned:true}}}}
     const result=parseLadmoSave(JSON.stringify(raw))
     expect(result.ok).toBe(true)
     if(result.ok){expect(result.save.data.seals['seal-19435']).toMatchObject({quantity:75,hasSeal:true});expect(result.save.data.dUnitInventory['omegamon-resistance-supremacy']).toMatchObject({owned:true})}
@@ -70,7 +71,7 @@ describe('LADMO Codex Save v1', () => {
   })
 
   it('round-trips relevant progress after later local changes', () => {
-    const saved=source(), changed=createLadmoSave({data:{seals:{},dUnitProgress:{},dUnitInventory:{}},preferences:{language:'en'}}), values:Record<string,string>={}
+    const saved=source(), changed=createLadmoSave({data:{goals:emptyTamerGoals(),seals:{},dUnitProgress:{},dUnitInventory:{}},preferences:{language:'en'}}), values:Record<string,string>={}
     applyLadmoSave(storage(values),changed)
     const parsed=parseLadmoSave(serializeLadmoSave(saved))
     if(parsed.ok)applyLadmoSave(storage(values),parsed.save)

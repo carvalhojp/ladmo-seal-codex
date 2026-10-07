@@ -127,12 +127,12 @@ function RouteComparison({ routes, t, selectedLabel, progress, playerState, onRe
   })}</div><div className="dunit-shared-requirements">{shared.length>0?<p>{t.dunitSharedRequirements}: {shared.length}</p>:<p>{t.dunitSharedUnavailable}</p>}{(shared.length>0||similar.length>0||unknown.length>0)&&<details className="dunit-route-details"><summary>{t.dunitSharedDetails}</summary><div className="dunit-candidate-details">{shared.length>0&&<small><b>{t.dunitSharedRequirements}</b><br/>{shared.join(' · ')}</small>}{similar.length>0&&<small><b>{t.dunitSimilarRequirements}</b><br/>{similar.join(' · ')}</small>}{unknown.length>0&&<small><b>{t.dunitSharedUnavailable}</b><br/>{unknown.join(' · ')}</small>}</div></details>}</div><p className="dunit-route-notice">{t.dunitComparisonLimits}</p></section>
 }
 
-export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerState,go }: {t:Record<string,string>;lang:Lang;objective:ProgressionObjective;progress:DUnitProgress;toggle:(setId:string,conditionId:string,checked:boolean)=>void;playerState:DUnitPlayerState;go:()=>void}) {
+export function DUnitGoalPlanner({ t:copy,lang,objective,progress,toggle,playerState,go,initialDraft,initialBonusKey }: {initialDraft?:string;initialBonusKey?:DUnitBonusKey;t:Record<string,string>;lang:Lang;objective:ProgressionObjective;progress:DUnitProgress;toggle:(setId:string,conditionId:string,checked:boolean)=>void;playerState:DUnitPlayerState;go:()=>void}) {
   const t:Record<string,string>={...copy,dunitDone:copy.ppStepDone,dunitMarkDone:copy.ppMarkDone,dunitSearchNoCandidates:copy.ppNoSearch,dunitProjectedTotal:copy.ppProjected,dunitIdentityPending:copy.ppIdentity}
   const options = useMemo(() => progressionDUnitOptions(objective), [objective])
-  const [selectedKey,setSelectedKey]=useState<DUnitBonusKey|''>('')
+  const [selectedKey,setSelectedKey]=useState<DUnitBonusKey|''>(initialBonusKey??'')
   const key=objective==='Dano habilidade'?selectedKey:(options[0]?.key??'')
-  const [draft,setDraft]=useState('')
+  const [draft,setDraft]=useState(initialDraft??'')
   type Snapshot=ReturnType<typeof calculateDUnitGoalRoute>&{source:DUnitProgress;playerSource:DUnitPlayerState;draft:string;key:string}
   const [storedSnapshot,setSnapshot]=useState<Snapshot|null>(null)
   const [invalidated,setInvalidated]=useState(false)
