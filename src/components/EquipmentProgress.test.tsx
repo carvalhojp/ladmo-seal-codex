@@ -3,6 +3,7 @@ import { EquipmentProgress } from './EquipmentProgress'
 import { MyTamer } from './MyTamer'
 import { About } from './About'
 import { equipmentProgressCopy } from '../data/equipmentProgressCopy'
+import { myTamerCopy } from '../data/myTamerCopy'
 import { emptyEquipmentProgress, updateEquipmentProgress, type EquipmentProgressState } from '../utils/equipmentState'
 import { createLadmoSave } from '../utils/saveBackup'
 
@@ -18,7 +19,7 @@ function nodes(node: any, match: (n: any) => boolean): any[] {
   return [...(match(node) ? [node] : []), ...nodes(node.props.children, match)]
 }
 const text = (node: any): string => Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : typeof node === 'object' ? '' : String(node ?? '')
-const t = { ...equipmentProgressCopy.pt, equipmentTitle: 'Equipamentos', cancel: 'Cancelar', importBackup: 'Importar' }
+const t = { ...equipmentProgressCopy.pt, ...myTamerCopy.pt, equipmentTitle: 'Equipamentos', cancel: 'Cancelar', importBackup: 'Importar' }
 beforeEach(() => { hooks.slots = []; hooks.cursor = 0 })
 
 describe('equipment progress interface', () => {
@@ -53,8 +54,8 @@ describe('equipment progress interface', () => {
     const navigate = vi.fn(), tree = render(MyTamer, { t, lang: 'pt', sealStates: {}, progress: {}, equipment: state, navigate })
     expect(text(tree)).toContain(`${t.epItems}1`); expect(text(tree)).toContain(`${t.epPieces}1`)
     expect(text(tree)).toContain(`${t.epLevel} 2`)
-    nodes(tree, n => n.type === 'button' && text(n) === t.epView)[0].props.onClick()
-    expect(navigate).toHaveBeenCalledWith('equipment'); expect(state.items).toHaveProperty('susanoomon-loader')
+    nodes(tree, n => n.type === 'button' && text(n) === t.tamerViewEquipmentProgress)[0].props.onClick()
+    expect(navigate).toHaveBeenCalledWith('equipmentProgress'); expect(state.items).toHaveProperty('susanoomon-loader')
   })
   it.each([1, 2, 3])('previews Save V%s and cancels without importing or changing player data', async version => {
     const save = createLadmoSave({ data: { seals: {}, dUnitProgress: {}, dUnitInventory: {} }, preferences: { language: 'pt' } })

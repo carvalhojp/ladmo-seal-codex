@@ -79,6 +79,16 @@ beforeEach(()=>{
 afterEach(()=>{unmount();vi.unstubAllGlobals();vi.restoreAllMocks()})
 
 describe('App session-history integration',()=>{
+  it('opens Equipment My progress from the actual dashboard shortcut and returns through history',()=>{
+    mount();menu('tamer');const before={...values},p=child(tree,MyTamer).props
+    const dashboard=render(MyTamer,p)
+    button(dashboard,p.t.tamerViewEquipmentProgress).props.onClick();tree=render(App)
+    expect(browser.location.hash).toBe('#equipment/progress')
+    expect(child(render(Equipment,child(tree,Equipment).props),EquipmentProgress)).toBeTruthy()
+    browser.history.back();tree=render(App);expect(child(tree,MyTamer)).toBeTruthy()
+    browser.history.forward();tree=render(App);expect(browser.location.hash).toBe('#equipment/progress')
+    expect(values).toEqual(before)
+  })
   it('navigates three main pages, goes back twice and forward, without duplicate pushes or storage writes',()=>{
     mount();const before={...values},writes=vi.mocked(localStorage.setItem).mock.calls.length
     menu('tamer');expect(child(tree,MyTamer)).toBeTruthy()

@@ -46,11 +46,13 @@ describe('translation coverage', () => {
   })
 
   it('keeps the Equipment, D-Unit V1, September 18 D-Unit, and September 16 Buff Deck changelog entries ahead of the previous entries in every language', () => {
-    expect(updates[0]).toMatchObject({date:'07/10/2026',titleKey:'navigationUpdateTitle',changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree']})
+    expect(updates[0]).toMatchObject({date:'08/10/2026',titleKey:'tamerV2UpdateTitle',changes:['tamerV2UpdateOne','tamerV2UpdateTwo']})
+    expect(updates.filter(update=>update.titleKey==='tamerV2UpdateTitle')).toHaveLength(1)
+    expect(updates[1]).toMatchObject({date:'07/10/2026',titleKey:'navigationUpdateTitle',changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree']})
     expect(updates.filter(update=>update.titleKey==='navigationUpdateTitle')).toHaveLength(1)
-    expect(updates[1]).toMatchObject({date:'07/10/2026',titleKey:'epUpdateTitle',changes:['epUpdateOne','epUpdateTwo','epUpdateThree','epUpdateFour']})
+    expect(updates[2]).toMatchObject({date:'07/10/2026',titleKey:'epUpdateTitle',changes:['epUpdateOne','epUpdateTwo','epUpdateThree','epUpdateFour']})
     expect(updates.filter(update=>update.titleKey==='epUpdateTitle')).toHaveLength(1)
-    const previousUpdates = updates.slice(2)
+    const previousUpdates = updates.slice(3)
     expect(previousUpdates.map(update => update.date)).toEqual(['07/10/2026', '06/10/2026', '05/10/2026', '04/10/2026', '26/09/2026', '18/09/2026', '16/09/2026', '15/09/2026', '13/09/2026'])
     expect(previousUpdates.filter(update=>update.date==='07/10/2026')).toHaveLength(1)
     expect(previousUpdates[0]).toMatchObject({titleKey:'tgUpdateTitle',changes:['tgUpdateOne','tgUpdateTwo','tgUpdateThree','tgUpdateFour','tgUpdateFive','tgUpdateSix']})
@@ -72,6 +74,7 @@ describe('translation coverage', () => {
       const progressionCopy = translationGroups.progressionPlannerCopy[language]
       expect(['ppUpdateTitle','ppUpdateOne','ppUpdateTwo','ppUpdateThree','ppUpdateFour','ppUpdateFive','ppUpdateSix','ppUpdateSeven'].every(key=>Boolean(progressionCopy[key as keyof typeof progressionCopy]))).toBe(true)
       const tamerCopy = translationGroups.myTamerCopy[language]
+      expect(['tamerV2UpdateTitle','tamerV2UpdateOne','tamerV2UpdateTwo'].every(key=>Boolean(tamerCopy[key as keyof typeof tamerCopy]))).toBe(true)
       expect(['tamerUpdateTitle','tamerUpdateOne','tamerUpdateTwo','tamerUpdateThree'].every(key=>Boolean(tamerCopy[key as keyof typeof tamerCopy]))).toBe(true)
       const copy = translationGroups.roundCopy[language]
       const dunitCopy = translationGroups.dunitUpdateCopy[language]

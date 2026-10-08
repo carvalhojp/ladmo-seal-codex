@@ -1,5 +1,6 @@
 export interface UpdateEntry { date: string; category: 'new'; changes: string[]; titleKey?: string }
 export const updates: UpdateEntry[] = [
+  { date:'08/10/2026', category:'new', titleKey:'tamerV2UpdateTitle', changes:['tamerV2UpdateOne','tamerV2UpdateTwo'] },
   { date:'07/10/2026', category:'new', titleKey:'navigationUpdateTitle', changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree'] },
   { date:'07/10/2026', category:'new', titleKey:'epUpdateTitle', changes:['epUpdateOne','epUpdateTwo','epUpdateThree','epUpdateFour'] },
   { date:'07/10/2026', category:'new', titleKey:'tgUpdateTitle', changes:['tgUpdateOne','tgUpdateTwo','tgUpdateThree','tgUpdateFour','tgUpdateFive','tgUpdateSix'] },
