@@ -1,5 +1,6 @@
 export interface UpdateEntry { date: string; category: 'new'; changes: string[]; titleKey?: string }
 export const updates: UpdateEntry[] = [
+  { date:'08/10/2026', category:'new', titleKey:'planningV2UpdateTitle', changes:['planningV2UpdateOne','planningV2UpdateTwo','planningV2UpdateThree','planningV2UpdateFour'] },
   { date:'08/10/2026', category:'new', titleKey:'tamerV2UpdateTitle', changes:['tamerV2UpdateOne','tamerV2UpdateTwo'] },
   { date:'07/10/2026', category:'new', titleKey:'navigationUpdateTitle', changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree'] },
   { date:'07/10/2026', category:'new', titleKey:'epUpdateTitle', changes:['epUpdateOne','epUpdateTwo','epUpdateThree','epUpdateFour'] },
@@ -15,24 +16,44 @@ export const updates: UpdateEntry[] = [
 ]
 export const navigationUpdateCopy = {
   pt: {
+    planningV2UpdateTitle: 'Planejamento V2 — Etapa 1: planeje suas metas',
+    planningV2UpdateOne: 'Abra uma meta do Meu Tamer no Planejamento ou selecione uma meta cadastrada para acompanhar o alvo, o progresso atual e o que falta. O planejamento livre continua disponível.',
+    planningV2UpdateTwo: 'Explore Próximos passos e Outras possibilidades com detalhes expansíveis. Nos Selos, veja o ganho adicional, os Selos, Tickets e abridores necessários; esses abridores não representam seu saldo disponível.',
+    planningV2UpdateThree: 'No D-Unit, diferencie as condições do atributo desejado das demais condições do conjunto, sem contar novamente bônus concluídos. Metas de completar conjuntos consideram todos os requisitos pendentes.',
+    planningV2UpdateFour: 'Crie metas de ganho de atributo pelo D-Unit com o tipo e a unidade exatos. A meta selecionada é mantida ao usar F5 e Voltar/Avançar. Informações desconhecidas continuam sinalizadas, sem apresentar as opções como ranking de custo-benefício.',
     navigationUpdateTitle: 'Navegação — Voltar e Avançar',
     navigationUpdateOne: 'Use os botões Voltar e Avançar do navegador para retornar entre páginas e subabas do Codex.',
     navigationUpdateTwo: 'Atalhos Alt + setas e botões laterais do mouse também são compatíveis. Recarregar a página com F5 mantém o destino atual.',
     navigationUpdateThree: 'Os atalhos Planejar e Ver conjunto continuam levando ao destino correto e agora participam do histórico de navegação.',
   },
   en: {
+    planningV2UpdateTitle: 'Planning V2 — Stage 1: plan your goals',
+    planningV2UpdateOne: 'Open a My Tamer goal in Planning or select a saved goal to see its target, current progress and remaining amount. Free planning remains available.',
+    planningV2UpdateTwo: 'Explore Next steps and Other possibilities with expandable details. For Seals, see the additional bonus and required Seals, Tickets and Openers; required Openers do not represent your available balance.',
+    planningV2UpdateThree: 'For D-Unit, distinguish conditions that grant your chosen attribute from the other set conditions, without counting completed bonuses again. Set completion goals include every pending requirement.',
+    planningV2UpdateFour: 'Create D-Unit attribute gain goals with the exact type and unit. Your selected goal is retained when refreshing with F5 or using Back/Forward. Unknown information stays clearly marked, and options are not presented as a cost-effectiveness ranking.',
     navigationUpdateTitle: 'Navigation — Back and Forward',
     navigationUpdateOne: 'Use your browser’s Back and Forward buttons to move between Codex pages and subtabs.',
     navigationUpdateTwo: 'Alt + arrow shortcuts and mouse side buttons are supported too. Refreshing with F5 keeps your current destination.',
     navigationUpdateThree: 'Plan and View set still open the correct destination and now participate in navigation history.',
   },
   es: {
+    planningV2UpdateTitle: 'Planificación V2 — Etapa 1: planifica tus metas',
+    planningV2UpdateOne: 'Abre una meta de Mi Tamer en Planificación o selecciona una meta guardada para consultar el objetivo, el progreso actual y lo que falta. La planificación libre sigue disponible.',
+    planningV2UpdateTwo: 'Explora Próximos pasos y Otras posibilidades con detalles desplegables. Para los Sellos, consulta el bono adicional y los Sellos, Tickets y Openers necesarios; estos Openers no representan tu saldo disponible.',
+    planningV2UpdateThree: 'En D-Unit, distingue las condiciones del atributo elegido de las demás condiciones del conjunto, sin volver a contar bonos completados. Las metas de completar conjuntos consideran todos los requisitos pendientes.',
+    planningV2UpdateFour: 'Crea metas de ganancia de atributos mediante D-Unit con el tipo y la unidad exactos. La meta seleccionada se mantiene al recargar con F5 y usar Atrás/Adelante. Los datos desconocidos siguen señalados y las opciones no se presentan como una clasificación de rentabilidad.',
     navigationUpdateTitle: 'Navegación — Atrás y Adelante',
     navigationUpdateOne: 'Usa los botones Atrás y Adelante del navegador para recorrer las páginas y subpestañas del Codex.',
     navigationUpdateTwo: 'También funcionan los atajos Alt + flechas y los botones laterales del ratón. Al recargar con F5 se mantiene el destino actual.',
     navigationUpdateThree: 'Planificar y Ver conjunto siguen abriendo el destino correcto y ahora forman parte del historial de navegación.',
   },
   ko: {
+    planningV2UpdateTitle: '진행 계획 V2 — 1단계: 목표에 맞춘 계획',
+    planningV2UpdateOne: '내 테이머의 목표를 진행 계획에서 열거나 저장된 목표를 선택해 목표 수치, 현재 진행도와 남은 수치를 확인하세요. 자유 계획도 계속 사용할 수 있습니다.',
+    planningV2UpdateTwo: '다음 단계와 다른 가능성을 펼쳐 볼 수 있는 상세 정보와 함께 확인하세요. Seal에서는 추가 보너스와 필요한 Seal, 티켓, 오프너를 표시합니다. 필요한 오프너 수는 보유 잔액을 뜻하지 않습니다.',
+    planningV2UpdateThree: 'D-Unit에서는 원하는 속성을 제공하는 조건과 세트의 다른 조건을 구분하며, 이미 완료한 보너스를 다시 계산하지 않습니다. 세트 완료 목표에는 남아 있는 모든 요구 조건이 포함됩니다.',
+    planningV2UpdateFour: '정확한 유형과 단위로 D-Unit 속성 증가 목표를 만들 수 있습니다. F5 새로고침과 뒤로/앞으로 이동 시 선택한 목표가 유지됩니다. 알 수 없는 정보는 명확히 표시하며, 선택지를 비용 대비 효율 순위로 제시하지 않습니다.',
     navigationUpdateTitle: '탐색 — 뒤로 및 앞으로',
     navigationUpdateOne: '브라우저의 뒤로 및 앞으로 버튼으로 Codex 페이지와 하위 탭 사이를 이동할 수 있습니다.',
     navigationUpdateTwo: 'Alt + 방향키와 마우스 측면 버튼도 지원합니다. F5로 새로고침해도 현재 페이지와 하위 탭이 유지됩니다.',

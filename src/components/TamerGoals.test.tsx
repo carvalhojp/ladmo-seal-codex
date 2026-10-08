@@ -8,6 +8,7 @@ import { DUnitCodex } from './DUnitCodex'
 import { About } from './About'
 import { tamerGoalsCopy } from '../data/tamerGoalsCopy'
 import { progressionPlannerCopy } from '../data/progressionPlannerCopy'
+import { progressionDUnitOptions } from '../utils/progressionPlanner'
 import { dUnitSets } from '../data/dUnitAudit'
 import { emptyTamerGoals, type TamerGoalsState } from '../utils/tamerGoals'
 import { createLadmoSave } from '../utils/saveBackup'
@@ -49,6 +50,48 @@ const props=()=>{
   return props
 }
 describe('Tamer goals interface',()=>{
+  it('reopens creation as an attribute goal after cancelling a set goal',()=>{
+    const p=props(),existing={id:'existing',type:'dunit-set' as const,setId:dUnitSets[0].id}
+    p.state={version:1,goals:[existing]}
+    let tree=render(TamerGoals,p)
+    button(tree,t.tgCreate).props.onClick();tree=render(TamerGoals,p)
+    change(tree,t.tgType,'dunit-set');tree=render(TamerGoals,p)
+    expect(control(tree,t.tgType).props.value).toBe('dunit-set')
+    button(tree,t.tgCancel).props.onClick();tree=render(TamerGoals,p)
+    button(tree,t.tgCreate).props.onClick();tree=render(TamerGoals,p)
+    expect(control(tree,t.tgType).props.value).toBe('attribute')
+    expect(control(tree,t.tgSystem)).toBeTruthy()
+    expect(text(tree)).toContain(t.tgAttributeHint)
+    expect(p.state.goals).toEqual([existing]);expect(p.save).not.toHaveBeenCalled()
+  })
+  it('creates a D-Unit attribute goal with the exact elemental percentage key',()=>{
+    const p=props(),expected=progressionDUnitOptions('Dano habilidade').find(option=>option.qualifier==='Elétrico'&&option.unit==='percent')!
+    let tree=render(TamerGoals,p)
+    button(tree,t.tgCreate).props.onClick();tree=render(TamerGoals,p)
+    change(tree,t.tgSystem,'dunit');tree=render(TamerGoals,p)
+    const option=nodes(control(tree,t.tgMetric),n=>n.type==='option'&&text(n)===`${t.ppSkill} ${t.ppElectric} (%)`)[0]
+    expect(option).toBeTruthy()
+    change(tree,t.tgMetric,option.props.value);tree=render(TamerGoals,p)
+    change(tree,t.tgGain,'5');tree=render(TamerGoals,p);submit(tree);tree=render(TamerGoals,p)
+    expect(p.state.goals).toHaveLength(1)
+    expect(p.state.goals[0]).toMatchObject({type:'attribute',metric:{system:'dunit',bonusKey:expected.key},desiredGain:5,baseline:0})
+    expect(p.progress).toEqual({});expect(p.sealStates).toEqual({})
+  })
+  it('filters set names case-insensitively and retains the selected set',()=>{
+    const p=props();let tree=render(TamerGoals,p)
+    button(tree,t.tgCreate).props.onClick();tree=render(TamerGoals,p)
+    change(tree,t.tgType,'dunit-set');tree=render(TamerGoals,p)
+    const set=dUnitSets[0],query=set.name.toLocaleUpperCase()
+    change(tree,t.tgSearch,query);tree=render(TamerGoals,p)
+    const ids=()=>nodes(control(tree,t.tgSet),n=>n.type==='option'&&n.props.value).map(n=>n.props.value)
+    expect(ids()).toEqual(dUnitSets.filter(item=>item.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(item=>item.id))
+    change(tree,t.tgSet,set.id);tree=render(TamerGoals,p)
+    change(tree,t.tgSearch,'__no_matching_dunit_set__');tree=render(TamerGoals,p)
+    expect(ids()).toEqual([set.id])
+    change(tree,t.tgSearch,'');tree=render(TamerGoals,p)
+    expect(ids()).toEqual(dUnitSets.map(item=>item.id))
+    expect(p.save).not.toHaveBeenCalled()
+  })
   it('creates, edits only gain, enforces limit including completed goals and confirms removal',()=>{
     vi.stubGlobal('window',{confirm:vi.fn(()=>true)})
     const p=props()

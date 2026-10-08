@@ -1,5 +1,6 @@
 export const tamerGoalsCopy = {
   pt: {
+    tgAttributeHint:'Para ganhar atributos pelo D-Unit, selecione “Ganhar atributo” e escolha “D-Unit” em Sistema.',
     tgUpdateTitle:'Metas do Tamer',
     tgUpdateOne:'Crie até três metas pessoais pelo Meu Tamer.',
     tgUpdateTwo:'Defina objetivos de ganho de atributos com Seal Master ou D-Unit e acompanhe seu progresso conforme seus registros.',
@@ -10,6 +11,7 @@ export const tamerGoalsCopy = {
     tgTitle:'Minhas metas', tgCreate:'Criar meta', tgEmpty:'Você ainda não definiu metas.', tgAttribute:'Ganhar atributo', tgSet:'Completar conjunto D-Unit', tgType:'Tipo de meta', tgSystem:'Sistema', tgMetric:'Atributo / subtipo', tgGain:'Ganho desejado', tgBaseline:'Bônus registrado na criação', tgRecorded:'Progresso conforme seus registros.', tgRemaining:'Faltam', tgComplete:'Concluída', tgActive:'Em progresso', tgUnavailable:'Meta indisponível', tgLimit:'Limite de 3 metas salvas, incluindo concluídas.', tgEdit:'Editar ganho', tgRemove:'Remover', tgRemoveConfirm:'Remover esta meta? Seu progresso não será alterado.', tgPlan:'Planejar', tgView:'Ver conjunto', tgSave:'Salvar meta', tgCancel:'Cancelar', tgSearch:'Pesquisar conjunto', tgChoose:'Selecione', tgConditions:'condições', tgError:'Não foi possível salvar. Verifique os valores e o armazenamento do navegador.', tgBlocked:'Os dados de metas não puderam ser lidos. Nenhum registro foi sobrescrito. Restaure um backup válido ou utilize a limpeza explícita dos dados do site.', tgSaved:'Meta salva.', tgRemoved:'Meta removida.', tgV1Warning:'Este backup V1 não contém metas. Ao confirmar, todas as metas atuais serão removidas.', tgSaveError:'A operação não foi concluída. Verifique o armazenamento e preserve seu backup; se o rollback falhar, os dados locais podem estar incompletos.', tgEditHint:'A edição mantém o sistema, atributo e bônus de referência da criação.',
   },
   en: {
+    tgAttributeHint:'To gain attributes through D-Unit, select “Gain an attribute” and choose “D-Unit” under System.',
     tgUpdateTitle:'Tamer Goals',
     tgUpdateOne:'Create up to three personal goals in My Tamer.',
     tgUpdateTwo:'Set attribute gain goals with Seal Master or D-Unit and track progress based on your records.',
@@ -20,6 +22,7 @@ export const tamerGoalsCopy = {
     tgTitle:'My goals', tgCreate:'Create goal', tgEmpty:'You have not set any goals yet.', tgAttribute:'Gain an attribute', tgSet:'Complete a D-Unit set', tgType:'Goal type', tgSystem:'System', tgMetric:'Attribute / subtype', tgGain:'Desired gain', tgBaseline:'Recorded bonus at creation', tgRecorded:'Progress according to your records.', tgRemaining:'Remaining', tgComplete:'Completed', tgActive:'In progress', tgUnavailable:'Goal unavailable', tgLimit:'Limit of 3 saved goals, including completed goals.', tgEdit:'Edit gain', tgRemove:'Remove', tgRemoveConfirm:'Remove this goal? Your progress will not change.', tgPlan:'Plan', tgView:'View set', tgSave:'Save goal', tgCancel:'Cancel', tgSearch:'Search sets', tgChoose:'Select', tgConditions:'conditions', tgError:'Could not save. Check the values and browser storage.', tgBlocked:'Goal data could not be read. No records were overwritten. Restore a valid backup or explicitly clear the site data.', tgSaved:'Goal saved.', tgRemoved:'Goal removed.', tgV1Warning:'This V1 backup contains no goals. Confirming will remove all current goals.', tgSaveError:'The operation did not complete. Check storage and keep your backup; if rollback fails, local data may be incomplete.', tgEditHint:'Editing keeps the system, attribute and original reference bonus.',
   },
   es: {
+    tgAttributeHint:'Para ganar atributos con D-Unit, selecciona “Ganar atributo” y elige “D-Unit” en Sistema.',
     tgUpdateTitle:'Metas del Tamer',
     tgUpdateOne:'Crea hasta tres metas personales en Mi Tamer.',
     tgUpdateTwo:'Define metas de ganancia de atributos con Seal Master o D-Unit y sigue tu progreso según tus registros.',
@@ -30,6 +33,7 @@ export const tamerGoalsCopy = {
     tgTitle:'Mis metas', tgCreate:'Crear meta', tgEmpty:'Todavía no has definido metas.', tgAttribute:'Ganar atributo', tgSet:'Completar conjunto D-Unit', tgType:'Tipo de meta', tgSystem:'Sistema', tgMetric:'Atributo / subtipo', tgGain:'Ganancia deseada', tgBaseline:'Bonificación registrada al crear', tgRecorded:'Progreso según tus registros.', tgRemaining:'Faltan', tgComplete:'Completada', tgActive:'En progreso', tgUnavailable:'Meta no disponible', tgLimit:'Límite de 3 metas guardadas, incluidas las completadas.', tgEdit:'Editar ganancia', tgRemove:'Eliminar', tgRemoveConfirm:'¿Eliminar esta meta? Tu progreso no cambiará.', tgPlan:'Planificar', tgView:'Ver conjunto', tgSave:'Guardar meta', tgCancel:'Cancelar', tgSearch:'Buscar conjunto', tgChoose:'Selecciona', tgConditions:'condiciones', tgError:'No se pudo guardar. Revisa los valores y el almacenamiento del navegador.', tgBlocked:'No se pudieron leer las metas. No se sobrescribió ningún registro. Restaura una copia válida o borra explícitamente los datos del sitio.', tgSaved:'Meta guardada.', tgRemoved:'Meta eliminada.', tgV1Warning:'Esta copia V1 no contiene metas. Al confirmar, se eliminarán todas las metas actuales.', tgSaveError:'La operación no se completó. Revisa el almacenamiento y conserva tu copia; si falla la reversión, los datos locales pueden quedar incompletos.', tgEditHint:'La edición conserva el sistema, el atributo y la bonificación de referencia original.',
   },
   ko: {
+    tgAttributeHint:'D-Unit으로 속성 보너스를 얻으려면 “속성 보너스 획득”을 선택한 뒤 시스템에서 “D-Unit”을 선택하세요.',
     tgUpdateTitle:'테이머 목표',
     tgUpdateOne:'내 테이머에서 개인 목표를 최대 3개까지 만들 수 있습니다.',
     tgUpdateTwo:'Seal Master 또는 D-Unit의 속성 보너스 획득 목표를 설정하고 등록한 기록을 기준으로 진행도를 확인하세요.',

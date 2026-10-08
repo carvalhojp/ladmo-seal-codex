@@ -8,6 +8,7 @@ import { DUnitGoalPlanner } from './components/DUnitGoalPlanner'
 import { DUnitCodex } from './components/DUnitCodex'
 import { MyDUnit } from './components/MyDUnit'
 import { MyTamer } from './components/MyTamer'
+import { GoalRecommendations } from './components/GoalRecommendations'
 import { Home } from './components/Home'
 import { createNavigation } from './utils/navigation'
 import { seals } from './data/seals'
@@ -79,6 +80,82 @@ beforeEach(()=>{
 afterEach(()=>{unmount();vi.unstubAllGlobals();vi.restoreAllMocks()})
 
 describe('App session-history integration',()=>{
+  it('opens a goal URL without history state, restores it on F5 and navigates between goals, free mode and a set',()=>{
+    values['ladmo-tamer-goals-v1']=JSON.stringify({version:1,goals:[
+      {id:'goal-ht',type:'attribute',metric:{system:'seals',attribute:'HT'},baseline:0,desiredGain:500},
+      {id:'goal-set',type:'dunit-set',setId:'dunit-159'},
+    ]})
+    mount('#goal/seals?goal=goal-ht')
+    const before={...values},pushes=browser.history.pushState.mock.calls.length
+    let p=child(tree,ProgressionPlanner).props,planner=render(ProgressionPlanner,p)
+    let recommendation=child(planner,GoalRecommendations)
+    expect(recommendation.props.goal).toMatchObject({id:'goal-ht',metric:{attribute:'HT'}})
+    expect(text(render(GoalRecommendations,recommendation.props))).toContain('HT (pontos)')
+    unmount();tree=render(App)
+    expect(browser.history.pushState).toHaveBeenCalledTimes(pushes)
+    p=child(tree,ProgressionPlanner).props;planner=render(ProgressionPlanner,p)
+    expect(child(planner,GoalRecommendations).props.goal.id).toBe('goal-ht')
+    nodes(planner,n=>n.props.id==='planning-goal')[0].props.onChange({target:{value:'goal-set'}})
+    tree=render(App);planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
+    expect(browser.location.hash).toBe('#goal?goal=goal-set')
+    recommendation=child(planner,GoalRecommendations)
+    expect(recommendation.props.goal.setId).toBe('dunit-159')
+    recommendation.props.viewSet('dunit-159');tree=render(App)
+    expect(child(tree,DUnitCodex).props.requestedSet).toBe('dunit-159')
+    browser.history.back();tree=render(App);planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
+    button(planner,child(tree,ProgressionPlanner).props.t.pvFree).props.onClick()
+    tree=render(App);planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
+    expect(browser.location.hash).toBe('#goal')
+    expect(nodes(planner,n=>n.props.id==='progression-objective')[0].props.value).toBe('')
+    browser.history.back();tree=render(App);planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
+    expect(child(planner,GoalRecommendations).props.goal.id).toBe('goal-set')
+    browser.history.forward();tree=render(App)
+    expect(browser.location.hash).toBe('#goal');expect(values).toEqual(before)
+  })
+  it('restores goal and HT through existing history state on F5 and Back/Forward',()=>{
+    const b=browserAt('#goal/dunit?goal=goal-one')
+    const controller=createNavigation(b as unknown as Window)
+    const stop=controller.subscribe(()=>{})
+    controller.go({tab:'goal',section:'seals',goalId:'goal-two',objective:'HT'})
+    expect(b.history.state.ladmoNavigation).toMatchObject({
+      tab:'goal',section:'seals',goalId:'goal-two',objective:'HT',
+    })
+    const pushes=b.history.pushState.mock.calls.length
+    b.history.back()
+    expect(controller.get().goalId).toBe('goal-one')
+    b.history.forward()
+    expect(controller.get()).toMatchObject({goalId:'goal-two',objective:'HT'})
+    stop()
+    // Simulate reload: rebuild the controller, retaining the browser entry.
+    const restoredState=JSON.parse(JSON.stringify(b.history.state))
+    b.history.replaceState(restoredState,'',b.location.href)
+    const reload=createNavigation(b as unknown as Window)
+    expect(reload.get()).toMatchObject({goalId:'goal-two',objective:'HT'})
+    expect(b.history.pushState).toHaveBeenCalledTimes(pushes)
+    expect(b.location.pathname).toBe('/ladmo-seal-codex/')
+    expect(b.location.search).toBe('?check=1')
+  })
+  it('does not invent HT when a goal URL has no previous history state',()=>{
+    const b=browserAt('#goal/seals?goal=goal-two')
+    expect(b.history.state).toBeNull()
+    const controller=createNavigation(b as unknown as Window)
+    expect(controller.get()).toEqual({
+      tab:'goal',section:'seals',goalId:'goal-two',
+    })
+    expect(controller.get().objective).toBeUndefined()
+  })
+  it.each(['#goal','#goal/seals','#goal/dunit'])('preserves legacy planning URLs: %s',hash=>{
+    const b=browserAt(hash),controller=createNavigation(b as unknown as Window)
+    expect(controller.get().goalId).toBeUndefined()
+    expect(b.location.hash).toBe(hash)
+  })
+  it.each(['','#invalid','a/b','a.b','x'.repeat(101)])('rejects an invalid goal ID: %s',id=>{
+    const b=browserAt(`#goal/dunit?goal=${encodeURIComponent(id)}`)
+    const controller=createNavigation(b as unknown as Window)
+    expect(controller.get()).toEqual({tab:'goal',section:'dunit'})
+    expect(b.location.hash).toBe('#goal/dunit')
+    expect(b.history.pushState).not.toHaveBeenCalled()
+  })
   it('opens Equipment My progress from the actual dashboard shortcut and returns through history',()=>{
     mount();menu('tamer');const before={...values},p=child(tree,MyTamer).props
     const dashboard=render(MyTamer,p)
@@ -129,13 +206,14 @@ describe('App session-history integration',()=>{
     browser.history.forward();tree=render(App);expect(browser.location.hash).toBe('#progress/dunit')
   })
   it('preserves Plan prefill and View set callbacks without changing player data',()=>{
+    values['ladmo-tamer-goals-v1']=JSON.stringify({version:1,goals:[{id:'goal-test',type:'attribute',metric:{system:'dunit',bonusKey:'EXP||percent'},baseline:0,desiredGain:300}]})
     mount();const before={...values};menu('tamer')
     const intent={id:'goal-test',objective:'EXP',system:'dunit',draft:'300'}
     child(tree,MyTamer).props.goalsProps.plan(intent);tree=render(App)
-    expect(browser.location.hash).toBe('#goal/dunit')
+    expect(browser.location.hash).toBe('#goal/dunit?goal=goal-test')
     const p=child(tree,ProgressionPlanner).props,planner=render(ProgressionPlanner,p)
-    expect(child(planner,DUnitGoalPlanner).props.initialDraft).toBe('300')
-    expect(child(planner,DUnitGoalPlanner).props.objective).toBe('EXP')
+    expect(child(planner,GoalRecommendations).props.goal).toMatchObject({id:'goal-test',metric:{bonusKey:'EXP||percent'},desiredGain:300})
+    expect(child(planner,DUnitGoalPlanner)).toBeUndefined()
     tree=render(App);browser.history.back();tree=render(App)
     child(tree,MyTamer).props.goalsProps.viewSet('dunit-159');tree=render(App)
     expect(child(tree,DUnitCodex).props.requestedSet).toBe('dunit-159')

@@ -28,7 +28,7 @@ export function TamerGoals({ t, lang, sealStates, progress, state, blocked, save
     const key = progressionObjectiveLabelKey(info.objective)
     return [key ? t[key] : info.objective, info.qualifier ? t[progressionSubtypeLabelKey(info.qualifier)] ?? info.qualifier : '', info.unit === 'percent' ? '(%)' : `(${t.ppPoints})`].filter(Boolean).join(' ')
   }
-  const start = () => { setEditing(null); setMetricIndex(''); setDraft(''); setSetId(''); setQuery(''); setMessage(''); setOpen(true) }
+  const start = () => { setType('attribute'); setEditing(null); setMetricIndex(''); setDraft(''); setSetId(''); setQuery(''); setMessage(''); setOpen(true) }
   const submit = () => {
     try {
       if (blocked || !editing && state.goals.length >= 3) throw new Error('Blocked')
@@ -57,6 +57,7 @@ export function TamerGoals({ t, lang, sealStates, progress, state, blocked, save
     {message && <p role="status">{message}</p>}
     {open && <form className="tamer-goal-form" onSubmit={event => { event.preventDefault(); submit() }}>
       {!editing && <label>{t.tgType}<select value={type} onChange={event => setType(event.target.value as typeof type)}><option value="attribute">{t.tgAttribute}</option><option value="dunit-set">{t.tgSet}</option></select></label>}
+      {!editing && <small>{t.tgAttributeHint}</small>}
       {editing || type === 'attribute' ? <>
         {editing ? <p>{t.tgEditHint}</p> : <><label>{t.tgSystem}<select value={system} onChange={event => { setSystem(event.target.value as typeof system); setMetricIndex(''); setDraft('') }}><option value="seals">Seal Master</option><option value="dunit">D-Unit</option></select></label><label>{t.tgMetric}<select value={metricIndex} onChange={event => { setMetricIndex(event.target.value); setDraft('') }}><option value="">{t.tgChoose}</option>{metrics.map((item, index) => <option key={index} value={index}>{label(item)}</option>)}</select></label></>}
         <label>{t.tgGain}{info ? ` — ${label(metric)}` : ''}<input value={draft} inputMode="decimal" onChange={event => setDraft(event.target.value)} required /></label>

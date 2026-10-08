@@ -4,6 +4,11 @@ import { ProgressionPlanner, progressionPlannerTab } from './ProgressionPlanner'
 import { GoalPlanner } from './GoalPlanner'
 import { DUnitGoalPlanner } from './DUnitGoalPlanner'
 import { MyTamer } from './MyTamer'
+import { GoalRecommendations } from './GoalRecommendations'
+import { tamerGoalsCopy } from '../data/tamerGoalsCopy'
+import { progressionDUnitOptions } from '../utils/progressionPlanner'
+import { bonusKey } from '../utils/dUnit'
+import type { TamerGoal } from '../utils/tamerGoals'
 import { progressionPlannerCopy } from '../data/progressionPlannerCopy'
 import { myTamerCopy } from '../data/myTamerCopy'
 import * as sealEngine from '../utils/goalOptimizer'
@@ -39,11 +44,122 @@ const find=(tree:any,id:string)=>nodes(tree,node=>node.props.id===id)[0]
 const text=(tree:any):string=>Array.isArray(tree)?tree.map(text).join(''):tree&&typeof tree==='object'?text(tree.props?.children):String(tree??'')
 const input=(tree:any,id:string,value:string)=>find(tree,id).props.onChange({target:{value}})
 const submit=(tree:any)=>nodes(tree,node=>node.type==='form')[0].props.onSubmit({preventDefault:vi.fn()})
-const t:Record<string,string>={...progressionPlannerCopy.pt,details:'Detalhes',strategy:'Estratégia',current:'Atual',destination:'Destino',needed:'Falta',gain:'Ganho',newSeals:'Selos adicionais',tickets:'Tickets',noTicketBudgetPlan:'Orçamento insuficiente',additionalTicketsNeeded:'Tickets adicionais',dunitSearchRoutes:'Buscar rotas'}
+const t:Record<string,string>={...progressionPlannerCopy.pt,...tamerGoalsCopy.pt,...myTamerCopy.pt,details:'Detalhes',strategy:'Estratégia',current:'Atual',destination:'Destino',needed:'Falta',gain:'Ganho',newSeals:'Selos adicionais',tickets:'Tickets',noTicketBudgetPlan:'Orçamento insuficiente',additionalTicketsNeeded:'Tickets adicionais',dunitSearchRoutes:'Buscar rotas'}
 const sealProps=()=>({t,lang:'pt',attribute:'AT',sealStates:{},go:vi.fn(),addRecommendation:vi.fn(),ticketBudget:500})
 const dunitProps=()=>({t,lang:'pt',objective:'EXP',progress:{},toggle:vi.fn(),playerState:{},go:vi.fn()})
 const plan={recommendations:[],totalBonus:500,totalTickets:50,totalOpeners:2,totalAdditionalSeals:100,excess:0}
 beforeEach(()=>{hooks.slots=[];hooks.cursor=0;vi.restoreAllMocks()})
+
+describe('goal-oriented planning interface',()=>{
+  const base=()=>({t,lang:'pt',sealStates:{},progress:{},inventory:{},ticketBudget:500,go:vi.fn(),addRecommendation:vi.fn(),toggle:vi.fn()})
+  const sealGoal:TamerGoal={id:'seal-goal',type:'attribute',metric:{system:'seals',attribute:'HT'},baseline:0,desiredGain:5000}
+  const panel=(goal:TamerGoal,extra:Record<string,unknown>={})=>({...base(),goal,viewSet:vi.fn(),...extra})
+
+  it('selects a saved goal and returns to free planning without changing it or calling engines',()=>{
+    const seal=vi.spyOn(sealEngine,'optimizeGoal'),dunit=vi.spyOn(dunitEngine,'calculateDUnitGoalRoute')
+    const goals={version:1 as const,goals:[sealGoal]},before=JSON.stringify(goals),selectGoal=vi.fn()
+    const p={...base(),goals,navigation:{objective:'' as const,system:null,selectGoal,go:vi.fn()}}
+    let tree=render(ProgressionPlanner,p)
+    input(tree,'planning-goal',sealGoal.id);expect(selectGoal).toHaveBeenLastCalledWith(sealGoal.id)
+    tree=render(ProgressionPlanner,{...p,navigation:{...p.navigation,goalId:sealGoal.id}})
+    expect(nodes(tree,n=>n.type===GoalRecommendations)[0].props.goal).toBe(sealGoal)
+    expect(nodes(tree,n=>n.type===GoalPlanner||n.type===DUnitGoalPlanner)).toHaveLength(0)
+    nodes(tree,n=>n.type==='button'&&text(n)===t.pvFree)[0].props.onClick()
+    expect(selectGoal).toHaveBeenLastCalledWith('')
+    tree=render(ProgressionPlanner,p)
+    expect(find(tree,'progression-objective').props.value).toBe('')
+    expect(JSON.stringify(goals)).toBe(before)
+    expect(seal).not.toHaveBeenCalled();expect(dunit).not.toHaveBeenCalled()
+    expect(p.addRecommendation).not.toHaveBeenCalled();expect(p.toggle).not.toHaveBeenCalled()
+  })
+
+  it('shows missing or blocked goals as unavailable instead of zero progress',()=>{
+    const p={...base(),goals:{version:1 as const,goals:[sealGoal]},navigation:{objective:'' as const,system:null,goalId:'missing',selectGoal:vi.fn(),go:vi.fn()}}
+    let tree=render(ProgressionPlanner,p)
+    expect(text(tree)).toContain(t.pvUnavailable)
+    expect(nodes(tree,n=>n.type===GoalRecommendations||n.type==='dd')).toHaveLength(0)
+    tree=render(ProgressionPlanner,{...p,goalsBlocked:true,navigation:{...p.navigation,goalId:sealGoal.id}})
+    expect(find(tree,'planning-goal').props.disabled).toBe(true)
+    expect(text(tree)).toContain(t.tgBlocked)
+  })
+
+  it('shows incremental Seal quantities, Tickets and Openers and limits long lists',()=>{
+    const seal=seals.find(item=>item.attribute==='HT')!,state={[seal.id]:{quantity:50,hasSeal:true,doNotRecommend:false}}
+    const p=panel(sealGoal,{sealStates:state}),before=JSON.stringify(state)
+    let tree=render(GoalRecommendations,p)
+    const started=nodes(tree,n=>n.type==='section'&&n.props['aria-label']===t.pvNext)[0]
+    expect(text(started)).toContain(`${t.newSeals}: 150`)
+    expect(text(started)).toContain(`${t.ppOpenersNeeded}: 3`)
+    expect(text(tree)).toContain(t.pvOpenersNotice)
+    expect(nodes(tree,n=>n.type==='article').length).toBeLessThanOrEqual(12)
+    nodes(started,n=>n.type==='button')[0].props.onClick();expect(p.go).toHaveBeenCalledWith('codex')
+    const more=nodes(tree,n=>n.type==='button'&&text(n)===t.pvMore)[0]
+    expect(more).toBeTruthy();more.props.onClick();tree=render(GoalRecommendations,p)
+    expect(nodes(tree,n=>n.type==='article').length).toBeGreaterThan(7)
+    expect(JSON.stringify(state)).toBe(before)
+  })
+
+  it('separates exact elemental percent conditions from other set requirements',()=>{
+    const metric=progressionDUnitOptions('Dano habilidade').find(item=>item.qualifier==='Elétrico'&&item.unit==='percent')!
+    const set=dUnitSets.find(set=>set.conditions.some(c=>bonusKey(c)===metric.key))!
+    const relevant=set.conditions.find(c=>bonusKey(c)===metric.key)!
+    const completed=set.conditions.find(c=>bonusKey(c)!==metric.key)!
+    const goal:TamerGoal={id:'electric-goal',type:'attribute',metric:{system:'dunit',bonusKey:metric.key},baseline:0,desiredGain:5}
+    const p=panel(goal,{progress:{[set.id]:{[completed.id]:true}}}),tree=render(GoalRecommendations,p)
+    expect(text(tree)).toContain('5%');expect(text(tree)).toContain(t.ppElectric)
+    const card=nodes(tree,n=>n.type==='article'&&text(n).includes(set.name))[0]
+    expect(text(card)).toContain(t.pvMatching);expect(text(card)).toContain(t.pvOtherConditions)
+    expect(text(card)).toContain(relevant.requirement);expect(text(card)).toContain(`✓ ${completed.requirement}`)
+    expect(text(card)).toContain(t.ppStepDone);expect(text(card)).toContain(t.pvPending)
+    expect(text(tree)).toContain(t.pvCostNotice)
+    nodes(card,n=>n.type==='button')[0].props.onClick();expect(p.viewSet).toHaveBeenCalledWith(set.id)
+  })
+
+  it('keeps a set goal actionable with one non-EXP requirement pending, then shows completion',()=>{
+    const set=dUnitSets.find(set=>set.conditions.some(c=>c.bonus.attribute==='EXP')&&set.conditions.some(c=>c.bonus.attribute!=='EXP'))!
+    const last=set.conditions.find(c=>c.bonus.attribute!=='EXP')!
+    const goal:TamerGoal={id:'set-goal',type:'dunit-set',setId:set.id}
+    const p=panel(goal,{progress:{[set.id]:Object.fromEntries(set.conditions.map(c=>[c.id,c.id!==last.id]))}})
+    let tree=render(GoalRecommendations,p)
+    expect(nodes(tree,n=>n.type==='article')).toHaveLength(1)
+    expect(text(tree)).toContain(set.name);expect(text(tree)).toContain(last.requirement)
+    expect(text(tree)).not.toContain(t.pvPendingGain)
+    tree=render(GoalRecommendations,{...p,progress:{[set.id]:Object.fromEntries(set.conditions.map(c=>[c.id,true]))}})
+    expect(text(tree)).toContain(t.tgComplete);expect(nodes(tree,n=>n.type==='article')).toHaveLength(0)
+    expect(text(tree)).toContain(set.name)
+  })
+
+  it('does not show numeric progress for an unavailable metric',()=>{
+    const goal:TamerGoal={id:'unknown-goal',type:'attribute',metric:{system:'dunit',bonusKey:'Unavailable||percent'},baseline:0,desiredGain:5}
+    const tree=render(GoalRecommendations,panel(goal))
+    expect(text(tree)).toContain(t.pvUnknownDetail)
+    expect(nodes(tree,n=>n.type==='dd')).toHaveLength(0)
+  })
+
+  it('keeps the baseline and additional target while live D-Unit progress reduces the remaining gain',()=>{
+    const set=dUnitSets.find(set=>set.conditions.filter(c=>c.bonus.attribute==='EXP'&&c.confirmed&&c.bonus.value!==null).length>1)!
+    const [first,second]=set.conditions.filter(c=>c.bonus.attribute==='EXP'&&c.confirmed&&c.bonus.value!==null)
+    const baseline=first.bonus.value!,goal:TamerGoal={id:'partial-exp',type:'attribute',metric:{system:'dunit',bonusKey:bonusKey(first)},baseline,desiredGain:300}
+    const p=panel(goal,{progress:{[set.id]:{[first.id]:true}}}),before=JSON.stringify(goal)
+    const stats=(tree:any)=>nodes(tree,n=>n.type==='dd').map(text)
+    let tree=render(GoalRecommendations,p)
+    expect(stats(tree)).toEqual([`${baseline+300}%`,`${baseline}%`,'300%'])
+    tree=render(GoalRecommendations,{...p,progress:{[set.id]:{[first.id]:true,[second.id]:true}}})
+    expect(stats(tree)).toEqual([`${baseline+300}%`,`${baseline+second.bonus.value!}%`,`${300-second.bonus.value!}%`])
+    expect(JSON.stringify(goal)).toBe(before)
+    expect(p.toggle).not.toHaveBeenCalled();expect(p.addRecommendation).not.toHaveBeenCalled()
+  })
+
+  it.each(['pt','en','es','ko'] as const)('localizes the goal interface in %s',lang=>{
+    const localized={...t,...progressionPlannerCopy[lang],...tamerGoalsCopy[lang],...myTamerCopy[lang]}
+    const tree=render(GoalRecommendations,panel(sealGoal,{t:localized,lang}))
+    for(const label of [localized.pvTarget,localized.pvNext,localized.pvOther,localized.pvOptionsNotice,localized.pvOpenersNotice])expect(text(tree)).toContain(label)
+    expect(text(tree)).not.toContain('undefined')
+    const expected=Object.keys(progressionPlannerCopy.pt).sort()
+    expect(Object.keys(progressionPlannerCopy[lang]).sort()).toEqual(expected)
+    expect(Object.values(progressionPlannerCopy[lang]).every(Boolean)).toBe(true)
+  })
+})
 
 describe('progression coordinator',()=>{
   it('starts blank without mounting planners or calling engines; preserves goal navigation',()=>{
