@@ -6,6 +6,7 @@ import { PageHead } from './PageHead'
 import { EquipmentProgress } from './EquipmentProgress'
 import { emptyEquipmentProgress, type EquipmentProgressState } from '../utils/equipmentState'
 import type { EquipmentLanguage } from '../data/equipmentProgressCatalog'
+import type { EquipmentView } from '../utils/navigation'
 
 function Info({ info, requiredLabel, rewardLabel }: { info: EquipmentInfo; requiredLabel?: string; rewardLabel?: string }) {
   if (requiredLabel || rewardLabel) return <div className="equipment-info equipment-quest-flow">
@@ -30,8 +31,10 @@ function Recipe({ recipe, t }: { recipe: EquipmentRecipe; t: Record<string, stri
   </li>
 }
 
-export function Equipment({ t, lang = 'pt', progress = emptyEquipmentProgress(), blocked = false, saveProgress }: { t: Record<string, string>; lang?: EquipmentLanguage; progress?: EquipmentProgressState; blocked?: boolean; saveProgress?: (state: EquipmentProgressState) => void }) {
-  const [view, setView] = useState<'dungeons'|'models'|'calculator'|'progress'>('dungeons')
+export function Equipment({ t, lang = 'pt', progress = emptyEquipmentProgress(), blocked = false, saveProgress, navigation }: { t: Record<string, string>; lang?: EquipmentLanguage; progress?: EquipmentProgressState; blocked?: boolean; saveProgress?: (state: EquipmentProgressState) => void; navigation?: {view:EquipmentView; go:(view:EquipmentView)=>void} }) {
+  const [localView, setLocalView] = useState<EquipmentView>('dungeons')
+  const view = navigation?.view ?? localView
+  const setView = navigation?.go ?? setLocalView
   const glossary = [
     ['AT', t.equipmentGlossaryAT], ['HT', t.equipmentGlossaryHT], ['CT', t.equipmentGlossaryCT], ['DC', t.equipmentGlossaryDC], ['AS', t.equipmentGlossaryAS], ['ATT', t.equipmentGlossaryATT], ['DF', t.equipmentGlossaryDF],
   ] as const
