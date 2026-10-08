@@ -1,4 +1,5 @@
 export const ladmoStorageKeys = [
+  'ladmo-equipment-progress-v1',
   'ladmo-tamer-goals-v1',
   'ladmo-lang',
   'ladmo-seal-state-v2',

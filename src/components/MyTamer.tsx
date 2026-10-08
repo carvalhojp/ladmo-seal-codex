@@ -8,16 +8,21 @@ import type { SealStateMap } from '../utils/sealState'
 import type { DUnitProgress } from '../utils/dUnit'
 import type { Attribute } from '../types'
 import type { Lang } from '../App'
+import { emptyEquipmentProgress, summarizeEquipmentProgress, type EquipmentProgressState } from '../utils/equipmentState'
+import { loaderStages } from '../data/equipmentProgressCatalog'
 
 const attributes: Attribute[] = ['AT', 'HT', 'CT', 'HP', 'DS', 'DE', 'BL', 'EV']
-export type TamerDestination = 'codex' | 'dunit' | 'mySeals' | 'myDUnit' | 'goal'
+export type TamerDestination = 'codex' | 'dunit' | 'mySeals' | 'myDUnit' | 'goal' | 'equipment'
 
-export function MyTamer({ t, lang, sealStates, progress, navigate, goalsProps }: {
+export function MyTamer({ t, lang, sealStates, progress, navigate, goalsProps, equipment = emptyEquipmentProgress(), equipmentBlocked = false }: {
+  equipment?: EquipmentProgressState; equipmentBlocked?: boolean;
   t: Record<string, string>; lang: Lang; sealStates: SealStateMap; progress: DUnitProgress;
   goalsProps?: Pick<TamerGoalsProps,'state'|'blocked'|'save'|'plan'|'viewSet'>;
   navigate: (destination: TamerDestination) => void;
 }) {
   const summary = useMemo(() => summarizeMyTamer(sealStates, progress), [sealStates, progress])
+  const equipmentSummary = useMemo(() => summarizeEquipmentProgress(equipment), [equipment])
+  const loaderStage = loaderStages.find(stage => stage.id === equipmentSummary.loaderStage)
   const locale = { pt: 'pt-BR', en: 'en-US', es: 'es', ko: 'ko-KR' }[lang]
   const number = (value: number) => value.toLocaleString(locale)
   const percent = (value: number, total: number) => (total ? value / total : 0).toLocaleString(locale, { style: 'percent', maximumFractionDigits: 1 })
@@ -27,6 +32,14 @@ export function MyTamer({ t, lang, sealStates, progress, navigate, goalsProps }:
     <div className="tamer-actions"><button className="quiet" onClick={() => navigate('goal')}>{t.ppTamerCTA}</button></div>
     <div className="tamer-page">
       {goalsProps && <TamerGoals {...goalsProps} t={t} lang={lang} sealStates={sealStates} progress={progress}/>}
+      <section className="tamer-panel" aria-label={t.equipmentTitle}><h2>{t.equipmentTitle}</h2>
+        {equipmentBlocked ? <p role="alert">{t.epBlocked}</p> : <>
+          <dl className="tamer-stats"><div><dt>{t.epItems}</dt><dd>{equipmentSummary.equipment}</dd></div><div><dt>{t.epPieces}</dt><dd>{equipmentSummary.mdgPieces}</dd></div></dl>
+          {!equipmentSummary.equipment && !equipmentSummary.mdgPieces && <p>{t.epEmpty}</p>}
+          {equipment.items['susanoomon-loader'] && <p>{t.epStage}: {loaderStage ? loaderStage.level === 11 ? t.epComplete : `${t.epLevel} ${loaderStage.level}` : t.epUnknownStage}</p>}
+        </>}
+        <button className="quiet" onClick={() => navigate('equipment')}>{t.epView}</button>
+      </section>
       <section className="tamer-panel" aria-labelledby="tamer-recorded"><h2 id="tamer-recorded">{t.tamerRecorded}</h2><p>{t.tamerNotice}</p>
         {summary.hasProgress ? <dl className="tamer-stats"><div><dt>{t.tamerOwned}</dt><dd>{number(summary.seals.owned)} <small>/ {number(summary.seals.total)}</small></dd><small>{t.tamerCollection}: {percent(summary.seals.owned, summary.seals.total)}</small></div><div><dt>{t.tamerConditions}</dt><dd>{number(summary.dUnit.completed)} <small>/ {number(summary.dUnit.totalConditions)}</small></dd><small>{percent(summary.dUnit.completed, summary.dUnit.totalConditions)}</small></div></dl>
           : <div className="tamer-empty"><h3>{t.tamerEmpty}</h3><p>{t.tamerEmptyHint}</p>{actions}</div>}

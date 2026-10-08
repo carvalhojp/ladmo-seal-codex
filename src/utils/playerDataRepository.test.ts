@@ -17,7 +17,7 @@ const setup = (values: Record<string, string> = {}) => {
 describe('local player data repository', () => {
   it('loads existing preferences/resources and preserves defaults and JSON fallback', () => {
     const empty = setup().repository.loadLocalState()
-    expect(empty).toEqual({ goals: { state: { version: 1, goals: [] } }, language: 'pt', ticketBudget: 500, openerBudget: 20, seals: {}, dUnitProgress: {}, dUnitInventory: {} })
+    expect(empty).toEqual({ equipment: { state: { version: 1, items: {} } }, goals: { state: { version: 1, goals: [] } }, language: 'pt', ticketBudget: 500, openerBudget: 20, seals: {}, dUnitProgress: {}, dUnitInventory: {} })
     expect(setup({ 'ladmo-lang': '"ko"', 'ladmo-tickets': '123', 'ladmo-openers': '7' }).repository.loadLocalState())
       .toMatchObject({ language: 'ko', ticketBudget: 123, openerBudget: 7 })
     expect(setup({ 'ladmo-lang': '{', 'ladmo-tickets': '{', 'ladmo-openers': '{' }).repository.loadLocalState()).toEqual(empty)

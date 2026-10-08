@@ -3,11 +3,13 @@ import { dUnitInventoryKey, dUnitProgressKey, readDUnitInventory, readDUnitProgr
 import { applyLadmoSave, type LadmoSave } from './saveBackup'
 import { readTamerGoals, tamerGoalsKey, validateTamerGoals, type GoalsLoad, type TamerGoalsState } from './tamerGoals'
 import { clearLadmoStorage } from './localData'
+import { equipmentProgressKey, readEquipmentProgress, sanitizeEquipmentProgress, type EquipmentLoad, type EquipmentProgressState } from './equipmentState'
 
 type Language = LadmoSave['preferences']['language']
 type LocalStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 export interface PlayerLocalState {
+  equipment: EquipmentLoad
   goals: GoalsLoad
   language: Language
   seals: SealStateMap
@@ -18,6 +20,7 @@ export interface PlayerLocalState {
 }
 
 export interface PlayerDataRepository {
+  saveEquipmentProgress(state: EquipmentProgressState): void
   loadLocalState(): PlayerLocalState
   saveTamerGoals(state: TamerGoalsState): void
   saveSealState(states: SealStateMap): void
@@ -40,6 +43,7 @@ export const createLocalPlayerDataRepository = (
   const write = (key: string, value: unknown) => getStorage().setItem(key, JSON.stringify(value))
   return {
     loadLocalState: () => ({
+      equipment: readEquipmentProgress(getStorage()),
       goals: readTamerGoals(getStorage()),
       language: stored<Language>('ladmo-lang', 'pt'),
       seals: readSealStates(getStorage()),
@@ -48,6 +52,11 @@ export const createLocalPlayerDataRepository = (
       ticketBudget: stored('ladmo-tickets', 500),
       openerBudget: stored('ladmo-openers', 20),
     }),
+    saveEquipmentProgress: state => {
+      const valid = sanitizeEquipmentProgress(state)
+      if (!valid || valid.ignored || readEquipmentProgress(getStorage()).error) throw new Error('Equipment storage is invalid or unavailable')
+      write(equipmentProgressKey, valid.state)
+    },
     saveTamerGoals: state => {
       const valid = validateTamerGoals(state)
       if (!valid || readTamerGoals(getStorage()).error) throw new Error('Goals storage is invalid or unavailable')

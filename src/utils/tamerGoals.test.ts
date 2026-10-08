@@ -83,7 +83,7 @@ describe('Tamer goals',()=>{
   })
   it('exports/restores V2 baseline and accepts V1 with explicit removal preview',()=>{
     const save=createLadmoSave({data:{seals:{},dUnitProgress:{},dUnitInventory:{},goals:state()},preferences:{language:'pt'}})
-    expect(save.version).toBe(2)
+    expect(save.version).toBe(3)
     const parsed=parseLadmoSave(JSON.stringify(save))
     expect(parsed.ok&&parsed.preview.goals).toBe(1)
     const values:Record<string,string>={},io=storage(values)

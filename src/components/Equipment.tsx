@@ -3,6 +3,9 @@ import { ChevronRight, CircleHelp, Coins, Hammer, Repeat2, ScrollText, Swords } 
 import { equipmentDungeons, equipmentPerfectModels, type EquipmentInfo, type EquipmentRecipe } from '../data/equipment'
 import { EquipmentProgressionCalculator } from './EquipmentProgressionCalculator'
 import { PageHead } from './PageHead'
+import { EquipmentProgress } from './EquipmentProgress'
+import { emptyEquipmentProgress, type EquipmentProgressState } from '../utils/equipmentState'
+import type { EquipmentLanguage } from '../data/equipmentProgressCatalog'
 
 function Info({ info, requiredLabel, rewardLabel }: { info: EquipmentInfo; requiredLabel?: string; rewardLabel?: string }) {
   if (requiredLabel || rewardLabel) return <div className="equipment-info equipment-quest-flow">
@@ -27,8 +30,8 @@ function Recipe({ recipe, t }: { recipe: EquipmentRecipe; t: Record<string, stri
   </li>
 }
 
-export function Equipment({ t }: { t: Record<string, string> }) {
-  const [view, setView] = useState<'dungeons'|'models'|'calculator'>('dungeons')
+export function Equipment({ t, lang = 'pt', progress = emptyEquipmentProgress(), blocked = false, saveProgress }: { t: Record<string, string>; lang?: EquipmentLanguage; progress?: EquipmentProgressState; blocked?: boolean; saveProgress?: (state: EquipmentProgressState) => void }) {
+  const [view, setView] = useState<'dungeons'|'models'|'calculator'|'progress'>('dungeons')
   const glossary = [
     ['AT', t.equipmentGlossaryAT], ['HT', t.equipmentGlossaryHT], ['CT', t.equipmentGlossaryCT], ['DC', t.equipmentGlossaryDC], ['AS', t.equipmentGlossaryAS], ['ATT', t.equipmentGlossaryATT], ['DF', t.equipmentGlossaryDF],
   ] as const
@@ -39,6 +42,7 @@ export function Equipment({ t }: { t: Record<string, string> }) {
       <button className={view==='dungeons'?'active':''} aria-pressed={view==='dungeons'} onClick={()=>setView('dungeons')}>{t.dungeons}</button>
       <button className={view==='models'?'active':''} aria-pressed={view==='models'} onClick={()=>setView('models')}>{t.perfectModels}</button>
       <button className={view==='calculator'?'active':''} aria-pressed={view==='calculator'} onClick={()=>setView('calculator')}>{t.progressionCalculator}</button>
+      {saveProgress && <button className={view==='progress'?'active':''} aria-pressed={view==='progress'} onClick={()=>setView('progress')}>{t.epTitle}</button>}
     </div>
     {view==='dungeons' ? <section className="equipment-grid" aria-label={t.dungeons}>{equipmentDungeons.map(dungeon => <article className="equipment-card" data-dungeon={dungeon.id} key={dungeon.id}>
       <header className="equipment-heading">{dungeon.bossImage && <img src={encodeURI(`${import.meta.env.BASE_URL}${dungeon.bossImage.slice(1)}`)} alt=""/>}<div><span className="eyebrow">{t.dungeon}{dungeon.abbreviation ? ` · ${dungeon.abbreviation}` : ''}</span><h2>{dungeon.name}</h2>{dungeon.equipment?.map(item => <p key={item}>{item}</p>)}</div></header>
@@ -58,6 +62,6 @@ export function Equipment({ t }: { t: Record<string, string> }) {
         <h3>{t.perfectModels}</h3>
         <div className="equipment-perfect-models">{equipment.perfectModels.map((model, index) => <section className="equipment-perfect-model" key={`${equipment.id}-${index}`} aria-label={`${t.perfectModel} ${index + 1}`}><span>{t.perfectModel} {index + 1}</span><div>{model.map((attribute, position)=><b className="equipment-attribute-tag" data-attribute={attribute} title={attributeDescriptions[attribute]} key={`${attribute}-${position}`}>{attribute}</b>)}</div></section>)}</div>
       </article>)}</div>
-    </section> : <EquipmentProgressionCalculator dungeons={equipmentDungeons} t={t}/>}
+    </section> : view==='progress' && saveProgress ? <EquipmentProgress state={progress} blocked={blocked} save={saveProgress} t={t} lang={lang}/> : <EquipmentProgressionCalculator dungeons={equipmentDungeons} t={t}/>}
   </>
 }

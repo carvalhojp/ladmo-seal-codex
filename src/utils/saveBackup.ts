@@ -4,9 +4,10 @@ import { confirmedDUnitPortraitIdentities } from '../data/dUnitPortraitIdentityA
 import { dUnitInventoryKey, dUnitProgressKey, hasDUnitInventoryRecord, type DUnitInventory, type DUnitInventoryEntry, type DUnitProgress } from './dUnit'
 import { legacyInventoryIdAliases } from './dUnit'
 import { legacySealIdAliases, migrateDuplicateDorugamon, sealStateKey, toOwnedSeals, type SealStateMap, type SealUserState } from './sealState'
+import { emptyEquipmentProgress, equipmentProgressKey, sanitizeEquipmentProgress, type EquipmentProgressState } from './equipmentState'
 
 export const saveFormat = 'ladmo-codex-save' as const
-export const saveVersion = 2 as const
+export const saveVersion = 3 as const
 export type SaveLanguage = 'pt' | 'en' | 'es' | 'ko'
 import { emptyTamerGoals, tamerGoalsKey, validateTamerGoals, type TamerGoalsState } from './tamerGoals'
 
@@ -18,9 +19,10 @@ export interface LadmoSaveV1 {
   preferences: { language: SaveLanguage }
 }
 export interface LadmoSaveV2 extends Omit<LadmoSaveV1, 'version' | 'data'> { version: 2; data: LadmoSaveV1['data'] & { goals: TamerGoalsState } }
-export type LadmoSave = LadmoSaveV1 | LadmoSaveV2
-export const goalsFromSave = (save: LadmoSave) => save.version === 2 ? save.data.goals : emptyTamerGoals()
-export interface SavePreview { exportedAt: string; seals: number; completedConditions: number; inventory: number; language: SaveLanguage; ignoredRecords: number; goals: number; removesGoals: boolean }
+export interface LadmoSaveV3 extends Omit<LadmoSaveV2, 'version' | 'data'> { version: 3; data: LadmoSaveV2['data'] & { equipment: EquipmentProgressState } }
+export type LadmoSave = LadmoSaveV1 | LadmoSaveV2 | LadmoSaveV3
+export const goalsFromSave = (save: LadmoSave) => save.version === 1 ? emptyTamerGoals() : save.data.goals
+export interface SavePreview { exportedAt: string; seals: number; completedConditions: number; inventory: number; language: SaveLanguage; ignoredRecords: number; goals: number; removesGoals: boolean; equipment: number | null; preservesEquipment: boolean }
 export type SaveParseResult = { ok: true; save: LadmoSave; preview: SavePreview } | { ok: false; error: 'invalidJson' | 'invalidFormat' | 'unsupportedVersion' | 'invalidStructure' }
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
@@ -77,21 +79,22 @@ function sanitizeInventory(value: unknown) {
 const buildSave = (raw: unknown): SaveParseResult => {
   if (!isObject(raw)) return { ok: false, error: 'invalidStructure' }
   if (raw.format !== saveFormat) return { ok: false, error: 'invalidFormat' }
-  if (raw.version !== 1 && raw.version !== 2) return { ok: false, error: 'unsupportedVersion' }
+  if (raw.version !== 1 && raw.version !== 2 && raw.version !== 3) return { ok: false, error: 'unsupportedVersion' }
   if (typeof raw.exportedAt !== 'string' || Number.isNaN(Date.parse(raw.exportedAt)) || !isObject(raw.data) || !isObject(raw.preferences) || !languages.has(raw.preferences.language as SaveLanguage)) return { ok: false, error: 'invalidStructure' }
   const sealsResult = sanitizeSeals(raw.data.seals), progressResult = sanitizeProgress(raw.data.dUnitProgress), inventoryResult = sanitizeInventory(raw.data.dUnitInventory)
   if (!sealsResult || !progressResult || !inventoryResult) return { ok: false, error: 'invalidStructure' }
-  const goals = raw.version === 2 ? validateTamerGoals(raw.data.goals) : emptyTamerGoals()
-  if (!goals) return { ok: false, error: 'invalidStructure' }
+  const goals = raw.version === 1 ? emptyTamerGoals() : validateTamerGoals(raw.data.goals)
+  const equipment = raw.version === 3 ? sanitizeEquipmentProgress(raw.data.equipment) : null
+  if (!goals || (raw.version === 3 && !equipment)) return { ok: false, error: 'invalidStructure' }
   const base = { format: saveFormat, exportedAt: raw.exportedAt, data: { seals: sealsResult.value, dUnitProgress: progressResult.value, dUnitInventory: inventoryResult.value }, preferences: { language: raw.preferences.language as SaveLanguage } }
-  const save: LadmoSave = raw.version === 1 ? { ...base, version: 1 } : { ...base, version: 2, data: { ...base.data, goals } }
-  return { ok: true, save, preview: { exportedAt: save.exportedAt, seals: toOwnedSeals(save.data.seals).length, completedConditions: Object.values(save.data.dUnitProgress).reduce((total, conditions) => total + Object.keys(conditions).length, 0), inventory: Object.keys(save.data.dUnitInventory).length, language: save.preferences.language, goals: goals.goals.length, removesGoals: raw.version === 1, ignoredRecords: sealsResult.ignored + progressResult.ignored + inventoryResult.ignored } }
+  const save: LadmoSave = raw.version === 1 ? { ...base, version: 1 } : raw.version === 2 ? { ...base, version: 2, data: { ...base.data, goals } } : { ...base, version: 3, data: { ...base.data, goals, equipment: equipment!.state } }
+  return { ok: true, save, preview: { exportedAt: save.exportedAt, seals: toOwnedSeals(save.data.seals).length, completedConditions: Object.values(save.data.dUnitProgress).reduce((total, conditions) => total + Object.keys(conditions).length, 0), inventory: Object.keys(save.data.dUnitInventory).length, language: save.preferences.language, goals: goals.goals.length, removesGoals: raw.version === 1, equipment: equipment ? Object.keys(equipment.state.items).length : null, preservesEquipment: raw.version !== 3, ignoredRecords: sealsResult.ignored + progressResult.ignored + inventoryResult.ignored + (equipment?.ignored ?? 0) } }
 }
 
-export function createLadmoSave(input: Omit<LadmoSaveV2, 'format' | 'version' | 'exportedAt' | 'data'> & { data: LadmoSaveV1['data'] & { goals?: TamerGoalsState }; exportedAt?: string }): LadmoSaveV2 {
-  const result = buildSave({ format: saveFormat, version: saveVersion, exportedAt: input.exportedAt ?? new Date().toISOString(), data: { ...input.data, goals: input.data.goals ?? emptyTamerGoals() }, preferences: input.preferences })
+export function createLadmoSave(input: Omit<LadmoSaveV3, 'format' | 'version' | 'exportedAt' | 'data'> & { data: LadmoSaveV1['data'] & { goals?: TamerGoalsState; equipment?: EquipmentProgressState }; exportedAt?: string }): LadmoSaveV3 {
+  const result = buildSave({ format: saveFormat, version: saveVersion, exportedAt: input.exportedAt ?? new Date().toISOString(), data: { ...input.data, goals: input.data.goals ?? emptyTamerGoals(), equipment: input.data.equipment ?? emptyEquipmentProgress() }, preferences: input.preferences })
   if (!result.ok) throw new Error('Cannot export an invalid LADMO save state')
-  return result.save as LadmoSaveV2
+  return result.save as LadmoSaveV3
 }
 
 export const serializeLadmoSave = (save: LadmoSave) => JSON.stringify(save, null, 2)
@@ -100,7 +103,7 @@ export function parseLadmoSave(text: string): SaveParseResult {
   try { return buildSave(JSON.parse(text) as unknown) } catch { return { ok: false, error: 'invalidJson' } }
 }
 
-/** Writes all Save V1 keys together and restores the previous values if a browser write fails. */
+/** Old saves preserve equipment; V3 replaces it in the same rollback transaction. */
 export function applyLadmoSave(storage: StorageLike, save: LadmoSave) {
   const values: [string, string][] = [
     ['ladmo-lang', JSON.stringify(save.preferences.language)],
@@ -108,6 +111,7 @@ export function applyLadmoSave(storage: StorageLike, save: LadmoSave) {
     [dUnitProgressKey, JSON.stringify(save.data.dUnitProgress)],
     [dUnitInventoryKey, JSON.stringify(save.data.dUnitInventory)],
     [tamerGoalsKey, JSON.stringify(goalsFromSave(save))],
+    ...(save.version === 3 ? [[equipmentProgressKey, JSON.stringify(save.data.equipment)] as [string, string]] : []),
   ]
   const previous = values.map(([key]) => [key, storage.getItem(key)] as const)
   try { values.forEach(([key, value]) => storage.setItem(key, value)) }
