@@ -5,7 +5,7 @@ import { summarizeMyTamer } from '../utils/myTamer'
 import { formatValue } from '../utils/calculations'
 import { localizedSealName } from '../data/localizedSealNames'
 import type { SealStateMap } from '../utils/sealState'
-import type { DUnitProgress } from '../utils/dUnit'
+import type { DUnitInventory, DUnitProgress } from '../utils/dUnit'
 import type { Attribute } from '../types'
 import type { Lang } from '../App'
 import { emptyEquipmentProgress, summarizeEquipmentProgress, type EquipmentProgressState } from '../utils/equipmentState'
@@ -14,9 +14,10 @@ import { equipmentProgressCatalog, mdgProgressCatalog, loaderStages } from '../d
 const attributes: Attribute[] = ['AT', 'HT', 'CT', 'HP', 'DS', 'DE', 'BL', 'EV']
 export type TamerDestination = 'codex' | 'dunit' | 'mySeals' | 'myDUnit' | 'goal' | 'equipment' | 'equipmentProgress'
 
-export function MyTamer({ t, lang, sealStates, progress, navigate, goalsProps, equipment = emptyEquipmentProgress(), equipmentBlocked = false }: {
+export function MyTamer({ t, lang, sealStates, progress, inventory, navigate, goalsProps, equipment = emptyEquipmentProgress(), equipmentBlocked = false }: {
   equipment?: EquipmentProgressState; equipmentBlocked?: boolean;
   t: Record<string, string>; lang: Lang; sealStates: SealStateMap; progress: DUnitProgress;
+  inventory?: DUnitInventory;
   goalsProps?: Pick<TamerGoalsProps,'state'|'blocked'|'save'|'plan'|'viewSet'>;
   navigate: (destination: TamerDestination) => void;
 }) {
@@ -55,7 +56,7 @@ export function MyTamer({ t, lang, sealStates, progress, navigate, goalsProps, e
           </section>
           <section className="tamer-panel" aria-labelledby="tamer-goals-summary"><h2 id="tamer-goals-summary">{t.tgTitle}</h2>
             {goalsProps?.blocked ? <p role="alert">{t.tgBlocked}</p> : <><dl className="tamer-stats"><div><dt>{t.tamerGoalsCount}</dt><dd>{number(goalsProps?.state.goals.length??0)}</dd></div></dl><p>{goalsProps?.state.goals.length ? t.tgRecorded : t.tgEmpty}</p></>}
-            {goalsProps && <details className="tamer-details"><summary>{t.tamerManageGoals}</summary><TamerGoals {...goalsProps} t={t} lang={lang} sealStates={sealStates} progress={progress}/></details>}
+            {goalsProps && <details className="tamer-details"><summary>{t.tamerManageGoals}</summary><TamerGoals {...goalsProps} t={t} lang={lang} sealStates={sealStates} progress={progress} inventory={inventory}/></details>}
           </section>
         </div>
       {summary.hasProgress && <>

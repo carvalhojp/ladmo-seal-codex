@@ -29,6 +29,14 @@ const props=()=>({t:copy(),lang:'pt' as const,sealStates:{},progress:{},equipmen
 afterEach(()=>vi.unstubAllGlobals())
 
 describe('Meu Tamer V2 overview',()=>{
+  it('forwards optional individual inventory without replacing missing records',()=>{
+    const p=props()
+    const absent=MyTamer(p)
+    expect(nodes(absent,n=>n.type===TamerGoals)[0].props.inventory).toBeUndefined()
+    const inventory={tentomon:{owned:true,level:120}}
+    const recorded=MyTamer({...p,inventory})
+    expect(nodes(recorded,n=>n.type===TamerGoals)[0].props.inventory).toBe(inventory)
+  })
   it('shows four independent sections with honest empty states and keeps management available',()=>{
     const p=props(),tree=MyTamer(p)
     for(const id of ['tamer-seals','tamer-dunit','tamer-equipment','tamer-goals-summary'])expect(section(tree,id)).toBeTruthy()
