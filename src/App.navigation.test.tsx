@@ -4,6 +4,7 @@ import { Equipment } from './components/Equipment'
 import { EquipmentProgress } from './components/EquipmentProgress'
 import { EquipmentProgressionCalculator } from './components/EquipmentProgressionCalculator'
 import { ProgressionPlanner } from './components/ProgressionPlanner'
+import { GoalPlanner } from './components/GoalPlanner'
 import { DUnitGoalPlanner } from './components/DUnitGoalPlanner'
 import { DUnitCodex } from './components/DUnitCodex'
 import { MyDUnit } from './components/MyDUnit'
@@ -13,6 +14,7 @@ import { Home } from './components/Home'
 import { createNavigation } from './utils/navigation'
 import { seals } from './data/seals'
 import { dUnitSets } from './data/dUnitAudit'
+import { goalTotals } from './utils/tamerGoals'
 
 // Same handler-level integration approach as the existing planner tests, with
 // independent hook stores per component and a browser-like session history.
@@ -80,6 +82,79 @@ beforeEach(()=>{
 afterEach(()=>{unmount();vi.unstubAllGlobals();vi.restoreAllMocks()})
 
 describe('App session-history integration',()=>{
+  it('opens the Seal calculator from My Tamer without changing the saved goal',()=>{
+    values['ladmo-seal-state-v2']=JSON.stringify({})
+    values['ladmo-tamer-goals-v1']=JSON.stringify({
+      version:1,goals:[{
+        id:'seal-from-tamer',type:'attribute',
+        metric:{system:'seals',attribute:'AT'},
+        baseline:0,desiredGain:100,
+      }],
+    })
+    mount()
+    menu('tamer')
+    const before={...values}
+    child(tree,MyTamer).props.goalsProps.plan({
+      id:'seal-from-tamer',objective:'AT',system:'seals',draft:'100',
+    })
+    tree=render(App)
+    expect(browser.location.hash).toBe('#goal/seals?goal=seal-from-tamer')
+
+    const props=child(tree,ProgressionPlanner).props
+    const planner=render(ProgressionPlanner,props)
+    const calculator=child(planner,GoalPlanner)
+    expect(calculator.key).toBe('seal-from-tamer')
+    expect(calculator.props.attribute).toBe('AT')
+    expect(calculator.props.goalDraft).toBe('100')
+    expect(child(planner,GoalRecommendations)).toBeUndefined()
+    expect(values).toEqual(before)
+  })
+
+  it('reconstructs the calculator after F5 from the latest persisted progress without intent',()=>{
+    const seal=seals.find(item=>item.attribute==='HT')!
+    const initialStates={
+      [seal.id]:{quantity:50,hasSeal:true,doNotRecommend:false},
+    }
+    const laterStates={
+      [seal.id]:{quantity:200,hasSeal:true,doNotRecommend:false},
+    }
+    const initialRemaining=5000-goalTotals(initialStates,{}).seals.HT
+    const laterRemaining=5000-goalTotals(laterStates,{}).seals.HT
+    expect(laterRemaining).toBeGreaterThan(0)
+    expect(laterRemaining).toBeLessThan(initialRemaining)
+
+    values['ladmo-seal-state-v2']=JSON.stringify(initialStates)
+    values['ladmo-dunit-progress-v1']=JSON.stringify({})
+    values['ladmo-tamer-goals-v1']=JSON.stringify({
+      version:1,goals:[{
+        id:'persisted-ht',type:'attribute',
+        metric:{system:'seals',attribute:'HT'},
+        baseline:0,desiredGain:5000,
+      }],
+    })
+    mount('#goal/seals?goal=persisted-ht')
+    let props=child(tree,ProgressionPlanner).props
+    expect(props.intent==null).toBe(true)
+    let planner=render(ProgressionPlanner,props)
+    expect(child(planner,GoalPlanner).props.goalDraft).toBe(String(initialRemaining))
+
+    // Remove todos os estados dos componentes. O reload deverá reler o storage.
+    unmount()
+    values['ladmo-seal-state-v2']=JSON.stringify(laterStates)
+    const before={...values}
+    browser.history.replaceState(null,'',browser.location.href)
+    tree=render(App)
+
+    props=child(tree,ProgressionPlanner).props
+    expect(props.intent==null).toBe(true)
+    planner=render(ProgressionPlanner,props)
+    const calculator=child(planner,GoalPlanner)
+    expect(calculator.key).toBe('persisted-ht')
+    expect(calculator.props.attribute).toBe('HT')
+    expect(calculator.props.goalDraft).toBe(String(laterRemaining))
+    expect(props.sealStates).toEqual(laterStates)
+    expect(values).toEqual(before)
+  })
   it('opens a goal URL without history state, restores it on F5 and navigates between goals, free mode and a set',()=>{
     values['ladmo-tamer-goals-v1']=JSON.stringify({version:1,goals:[
       {id:'goal-ht',type:'attribute',metric:{system:'seals',attribute:'HT'},baseline:0,desiredGain:500},
@@ -88,17 +163,20 @@ describe('App session-history integration',()=>{
     mount('#goal/seals?goal=goal-ht')
     const before={...values},pushes=browser.history.pushState.mock.calls.length
     let p=child(tree,ProgressionPlanner).props,planner=render(ProgressionPlanner,p)
-    let recommendation=child(planner,GoalRecommendations)
-    expect(recommendation.props.goal).toMatchObject({id:'goal-ht',metric:{attribute:'HT'}})
-    expect(text(render(GoalRecommendations,recommendation.props))).toContain('HT (pontos)')
+    const calculator=child(planner,GoalPlanner)
+    expect(calculator.key).toBe('goal-ht')
+    expect(calculator.props.attribute).toBe('HT')
+    expect(calculator.props.goalDraft).toBe(String(500-goalTotals(p.sealStates,p.progress).seals.HT))
+    expect(text(planner)).toContain('HT (pontos)')
     unmount();tree=render(App)
     expect(browser.history.pushState).toHaveBeenCalledTimes(pushes)
     p=child(tree,ProgressionPlanner).props;planner=render(ProgressionPlanner,p)
-    expect(child(planner,GoalRecommendations).props.goal.id).toBe('goal-ht')
+    expect(child(planner,GoalPlanner).key).toBe('goal-ht')
+    expect(child(planner,GoalPlanner).props.attribute).toBe('HT')
     nodes(planner,n=>n.props.id==='planning-goal')[0].props.onChange({target:{value:'goal-set'}})
     tree=render(App);planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
     expect(browser.location.hash).toBe('#goal?goal=goal-set')
-    recommendation=child(planner,GoalRecommendations)
+    const recommendation=child(planner,GoalRecommendations)
     expect(recommendation.props.goal.setId).toBe('dunit-159')
     recommendation.props.viewSet('dunit-159');tree=render(App)
     expect(child(tree,DUnitCodex).props.requestedSet).toBe('dunit-159')

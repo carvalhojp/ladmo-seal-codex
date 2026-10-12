@@ -8,7 +8,7 @@ import { GoalRecommendations } from './GoalRecommendations'
 import { tamerGoalsCopy } from '../data/tamerGoalsCopy'
 import { progressionDUnitOptions } from '../utils/progressionPlanner'
 import { bonusKey } from '../utils/dUnit'
-import type { TamerGoal } from '../utils/tamerGoals'
+import { goalTotals, type TamerGoal } from '../utils/tamerGoals'
 import { progressionPlannerCopy } from '../data/progressionPlannerCopy'
 import { myTamerCopy } from '../data/myTamerCopy'
 import * as sealEngine from '../utils/goalOptimizer'
@@ -51,6 +51,14 @@ const plan={recommendations:[],totalBonus:500,totalTickets:50,totalOpeners:2,tot
 beforeEach(()=>{hooks.slots=[];hooks.cursor=0;vi.restoreAllMocks()})
 
 describe('goal-oriented planning interface',()=>{
+  it('preserves the contextual editor ID and total destination in the existing recommendations component',()=>{
+    const editSeal=vi.fn(),p=panel(sealGoal,{editSeal})
+    const view=render(GoalRecommendations,p),card=nodes(view,n=>n.type==='article')[0]
+    nodes(card,n=>n.type==='button'&&text(n)===t.ppUpdateSeals)[0].props.onClick()
+    const expected=sealEngine.buildProgressOptions(seals.find(s=>s.attribute==='HT')!)[0]
+    expect(editSeal).toHaveBeenCalledWith(expected.seal.id,expected.finalQuantity)
+    expect(p.go).not.toHaveBeenCalled()
+  })
   const base=()=>({t,lang:'pt',sealStates:{},progress:{},inventory:{},ticketBudget:500,go:vi.fn(),addRecommendation:vi.fn(),toggle:vi.fn()})
   const sealGoal:TamerGoal={id:'seal-goal',type:'attribute',metric:{system:'seals',attribute:'HT'},baseline:0,desiredGain:5000}
   const panel=(goal:TamerGoal,extra:Record<string,unknown>={})=>({...base(),goal,viewSet:vi.fn(),...extra})
@@ -62,8 +70,11 @@ describe('goal-oriented planning interface',()=>{
     let tree=render(ProgressionPlanner,p)
     input(tree,'planning-goal',sealGoal.id);expect(selectGoal).toHaveBeenLastCalledWith(sealGoal.id)
     tree=render(ProgressionPlanner,{...p,navigation:{...p.navigation,goalId:sealGoal.id}})
-    expect(nodes(tree,n=>n.type===GoalRecommendations)[0].props.goal).toBe(sealGoal)
-    expect(nodes(tree,n=>n.type===GoalPlanner||n.type===DUnitGoalPlanner)).toHaveLength(0)
+    const calculator=nodes(tree,n=>n.type===GoalPlanner)[0]
+    expect(calculator.key).toBe(sealGoal.id)
+    expect(calculator.props.attribute).toBe('HT')
+    expect(calculator.props.goalDraft).toBe('5000')
+    expect(nodes(tree,n=>n.type===GoalRecommendations||n.type===DUnitGoalPlanner)).toHaveLength(0)
     nodes(tree,n=>n.type==='button'&&text(n)===t.pvFree)[0].props.onClick()
     expect(selectGoal).toHaveBeenLastCalledWith('')
     tree=render(ProgressionPlanner,p)
@@ -158,6 +169,195 @@ describe('goal-oriented planning interface',()=>{
     const expected=Object.keys(progressionPlannerCopy.pt).sort()
     expect(Object.keys(progressionPlannerCopy[lang]).sort()).toEqual(expected)
     expect(Object.values(progressionPlannerCopy[lang]).every(Boolean)).toBe(true)
+  })
+})
+
+describe('saved Seal goal synchronization',()=>{
+  const click=(tree:ReactElement,label:string)=>
+    nodes(tree,node=>node.type==='button'&&text(node)===label)[0].props.onClick()
+  const calculateButton=(tree:ReactElement)=>
+    nodes(tree,node=>node.type==='button'&&node.props.type==='submit')[0]
+
+  it('forwards the exact attribute and remaining gain without subtracting progress twice',()=>{
+    const seal=seals.find(item=>item.attribute==='HT')!
+    const states={[seal.id]:{quantity:50,hasSeal:true,doNotRecommend:false}}
+    const current=goalTotals(states,{}).seals.HT
+    const remaining=5000-current
+    expect(current).toBeGreaterThan(0)
+    expect(remaining).toBeGreaterThan(0)
+    const goal:TamerGoal={
+      id:'remaining-ht',type:'attribute',
+      metric:{system:'seals',attribute:'HT'},baseline:0,desiredGain:5000,
+    }
+    const goals={version:1 as const,goals:[goal]},before=JSON.stringify(goals)
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue(plan)
+    const props={
+      t,lang:'pt',sealStates:states,progress:{},inventory:{},
+      ticketBudget:500,go:vi.fn(),addRecommendation:vi.fn(),toggle:vi.fn(),
+      goals,navigation:{objective:'' as const,system:null,goalId:goal.id,go:vi.fn()},
+    }
+    const planner=render(ProgressionPlanner,props)
+    const calculator=nodes(planner,n=>n.type===GoalPlanner)[0]
+    expect(calculator.props.attribute).toBe('HT')
+    expect(calculator.props.goalDraft).toBe(String(remaining))
+    expect(engine).not.toHaveBeenCalled()
+
+    // Isola a montagem da calculadora do armazenamento do coordenador.
+    // Preserva props e spy; as próximas renderizações reutilizam estes slots.
+    hooks.slots=[]
+    let tree=render(GoalPlanner,calculator.props)
+    expect(find(tree,'seal-target').props.value).toBe(String(remaining))
+    expect(engine).not.toHaveBeenCalled()
+    submit(tree)
+    tree=render(GoalPlanner,calculator.props)
+    expect(engine).toHaveBeenCalledWith('HT',remaining,seals,expect.anything(),'cheap')
+    expect(JSON.stringify(goals)).toBe(before)
+    expect(props.addRecommendation).not.toHaveBeenCalled()
+  })
+
+  it('preserves manual edits through consecutive progress and attribute changes',()=>{
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue(plan)
+    let props={...sealProps(),goalDraft:'100'}
+    let tree=render(GoalPlanner,props)
+    input(tree,'seal-target','77')
+    props={...props,goalDraft:'80'}
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('77')
+    expect(calculateButton(tree).props.disabled).toBe(true)
+
+    // Coincidir com o restante não deve encerrar a edição manual.
+    input(tree,'seal-target','80')
+    props={...props,goalDraft:'65'}
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('80')
+    props={...props,attribute:'HT'}
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('80')
+    expect(calculateButton(tree).props.disabled).toBe(true)
+
+    // Exercita também a proteção no handler, sem depender do disabled.
+    submit(tree)
+    expect(engine).not.toHaveBeenCalled()
+    click(tree,t.ppKeepGoalDraft)
+    tree=render(GoalPlanner,props)
+    expect(calculateButton(tree).props.disabled).toBe(false)
+    expect(engine).not.toHaveBeenCalled()
+    submit(tree)
+    expect(engine.mock.calls[0].slice(0,2)).toEqual(['HT',80])
+    expect(props.addRecommendation).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['HT',100],
+    // CT em Selos usa centésimos de ponto percentual: 100% → 10000.
+    ['CT',10000],
+  ])('updates the attribute to %s even when the displayed remainder is unchanged',(attribute,normalized)=>{
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue(plan)
+    const props={...sealProps(),goalDraft:'100'}
+    let tree=render(GoalPlanner,props)
+    submit(tree)
+    tree=render(GoalPlanner,props)
+    expect(text(tree)).toContain(t.ppOpenersNotice)
+
+    tree=render(GoalPlanner,{...props,attribute})
+    expect(find(tree,'seal-target').props.value).toBe('100')
+    expect(calculateButton(tree).props.disabled).toBe(false)
+    expect(text(tree)).toContain(t.ppReady)
+    expect(text(tree)).not.toContain(t.ppOpenersNotice)
+    expect(engine).toHaveBeenCalledTimes(1)
+    submit(tree)
+    expect(engine.mock.calls[1].slice(0,2)).toEqual([attribute,normalized])
+  })
+
+  it('preserves budget and strategy and discards results through both reconciliation choices',()=>{
+    const engine=vi.spyOn(sealEngine,'optimizeGoalWithTicketLimit')
+      .mockReturnValue({plan,bestWithinBudget:null,additionalTicketsNeeded:null})
+    let props={...sealProps(),goalDraft:'100'}
+    let tree=render(GoalPlanner,props)
+    input(tree,'seal-strategy','ticketLimit')
+    tree=render(GoalPlanner,props)
+    input(tree,'seal-budget','321')
+    tree=render(GoalPlanner,props)
+    submit(tree)
+    tree=render(GoalPlanner,props)
+    expect(text(tree)).toContain(t.ppOpenersNotice)
+
+    // Mudança sem edição manual invalida a rota calculada.
+    props={...props,goalDraft:'80'}
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('80')
+    expect(text(tree)).toContain(t.ppReady)
+    expect(text(tree)).not.toContain(t.ppOpenersNotice)
+
+    input(tree,'seal-target','77')
+    props={...props,goalDraft:'65'}
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-strategy').props.value).toBe('ticketLimit')
+    expect(find(tree,'seal-budget').props.value).toBe('321')
+    submit(tree)
+    expect(engine).toHaveBeenCalledTimes(1)
+
+    click(tree,t.ppKeepGoalDraft)
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('77')
+    expect(text(tree)).toContain(t.ppReady)
+    expect(text(tree)).not.toContain(t.ppOpenersNotice)
+    expect(engine).toHaveBeenCalledTimes(1)
+    submit(tree)
+    tree=render(GoalPlanner,props)
+    expect(engine.mock.calls[1].slice(0,2)).toEqual(['AT',77])
+    expect(engine.mock.calls[1][4]).toBe(321)
+
+    props={...props,goalDraft:'60',attribute:'HT'}
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('77')
+    expect(calculateButton(tree).props.disabled).toBe(true)
+    expect(text(tree)).not.toContain(t.ppOpenersNotice)
+    submit(tree)
+    expect(engine).toHaveBeenCalledTimes(2)
+
+    click(tree,t.ppUseGoalRemaining)
+    tree=render(GoalPlanner,props)
+    expect(find(tree,'seal-target').props.value).toBe('60')
+    expect(find(tree,'seal-budget').props.value).toBe('321')
+    expect(find(tree,'seal-strategy').props.value).toBe('ticketLimit')
+    expect(text(tree)).toContain(t.ppReady)
+    expect(engine).toHaveBeenCalledTimes(2)
+    submit(tree)
+    expect(engine.mock.calls[2].slice(0,2)).toEqual(['HT',60])
+    expect(engine.mock.calls[2][4]).toBe(321)
+  })
+
+  it('preserves manual free planning without activating goal reconciliation',()=>{
+    const engine=vi.spyOn(sealEngine,'optimizeGoal').mockReturnValue(plan)
+    const props={...sealProps(),initialDraft:'100'}
+    let tree=render(GoalPlanner,props)
+    input(tree,'seal-target','77')
+    tree=render(GoalPlanner,{...props,initialDraft:'50'})
+    expect(find(tree,'seal-target').props.value).toBe('77')
+    expect(text(tree)).not.toContain(t.ppGoalChanged)
+    expect(calculateButton(tree).props.disabled).toBe(false)
+    submit(tree)
+    expect(engine.mock.calls[0].slice(0,2)).toEqual(['AT',77])
+  })
+
+  it('keeps D-Unit goals on their existing recommendations path',()=>{
+    const goal:TamerGoal={id:'dunit-set-goal',type:'dunit-set',setId:'dunit-159'}
+    const goals={version:1 as const,goals:[goal]},before=JSON.stringify(goals)
+    const editSeal=vi.fn(),viewSet=vi.fn()
+    const props={
+      t,lang:'pt',sealStates:{},progress:{},inventory:{},ticketBudget:500,
+      go:vi.fn(),addRecommendation:vi.fn(),toggle:vi.fn(),goals,editSeal,viewSet,
+      navigation:{objective:'' as const,system:null,goalId:goal.id,go:vi.fn()},
+    }
+    const tree=render(ProgressionPlanner,props)
+    const recommendation=nodes(tree,n=>n.type===GoalRecommendations)[0]
+    expect(recommendation.props.goal).toBe(goal)
+    expect(recommendation.props.viewSet).toBe(viewSet)
+    expect(recommendation.props.editSeal).toBe(editSeal)
+    expect(nodes(tree,n=>n.type===GoalPlanner||n.type===DUnitGoalPlanner)).toHaveLength(0)
+    expect(JSON.stringify(goals)).toBe(before)
+    expect(props.toggle).not.toHaveBeenCalled()
   })
 })
 

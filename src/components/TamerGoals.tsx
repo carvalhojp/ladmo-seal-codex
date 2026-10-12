@@ -8,12 +8,13 @@ import { mainProgressionAttributes, otherProgressionAttributes, parseProgression
 import { currentGoalBonus, deriveTamerGoal, goalDisplayValue, goalMetricInfo, goalPlannerIntent, goalTotals, newTamerGoalId, type GoalMetric, type GoalPlannerIntent, type TamerGoal, type TamerGoalsState } from '../utils/tamerGoals'
 
 export interface TamerGoalsProps {
+  editSeal?: (id: string, destination: number) => void;
   t: Record<string, string>; lang: Lang; sealStates: SealStateMap; progress: DUnitProgress;
   inventory?: DUnitInventory;
   state: TamerGoalsState; blocked?: boolean; save: (state: TamerGoalsState) => void;
   plan: (intent: GoalPlannerIntent) => void; viewSet: (id: string) => void;
 }
-export function TamerGoals({ t, lang, sealStates, progress, inventory, state, blocked, save, plan, viewSet }: TamerGoalsProps) {
+export function TamerGoals({ t, lang, sealStates, progress, inventory, editSeal, state, blocked, save, plan, viewSet }: TamerGoalsProps) {
   const totals = useMemo(() => goalTotals(sealStates, progress), [sealStates, progress])
   const [open, setOpen] = useState(false), [editing, setEditing] = useState<string | null>(null)
   const [type, setType] = useState<'attribute' | 'dunit-set'>('attribute'), [system, setSystem] = useState<'seals' | 'dunit'>('seals')
@@ -75,9 +76,9 @@ export function TamerGoals({ t, lang, sealStates, progress, inventory, state, bl
         <h3>{title}</h3><small>{goal.type === 'attribute' && goal.metric.system === 'seals' ? 'Seal Master' : 'D-Unit'}</small>
         <b>{!result ? t.tgUnavailable : result.complete ? t.tgComplete : t.tgActive}</b>
         {result && <><span>{goal.type === 'attribute' ? `${format(goal.metric, result.done)} / ${format(goal.metric, result.total)}` : `${result.done} / ${result.total} ${t.tgConditions}`}</span><progress aria-label={title} max={result.total} value={result.done} /><span>{t.tgRemaining}: {goal.type === 'attribute' ? format(goal.metric, result.remaining) : result.remaining}</span></>}
-        {!blocked && <GoalClassificationDetails
+        {!blocked && !(goal.type === 'attribute' && goal.metric.system === 'seals') && <GoalClassificationDetails
           key={goal.id} goal={goal} t={t} lang={lang}
-          sealStates={sealStates} progress={progress} inventory={inventory}
+          sealStates={sealStates} progress={progress} inventory={inventory} editSeal={editSeal}
         />}
         <div className="tamer-actions">{goal.type === 'attribute' ? <><button className="quiet" disabled={!intent} onClick={() => intent && plan(intent)}>{t.tgPlan}</button><button className="quiet" disabled={blocked || !result} onClick={() => { setEditing(goal.id); setDraft(String(goalDisplayValue(goal.metric, goal.desiredGain))); setMessage(''); setOpen(true) }}>{t.tgEdit}</button></> : <button className="quiet" disabled={!result} onClick={() => viewSet(goal.setId)}>{t.tgView}</button>}<button className="quiet" disabled={blocked} onClick={() => remove(goal.id)}>{t.tgRemove}</button></div>
       </article>

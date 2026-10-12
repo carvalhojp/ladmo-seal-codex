@@ -9,6 +9,7 @@ import type { SealStateMap } from '../utils/sealState'
 import type { RecommendationMetric } from '../utils/recommendationClassification'
 
 interface Props {
+  editSeal?: (id: string, destination: number) => void
   goal: TamerGoal
   t: Record<string, string>
   lang: Lang
@@ -29,7 +30,7 @@ export function GoalClassificationDetails(props: Props) {
   </details>
 }
 
-function ClassificationContent({ goal, t, lang, sealStates, progress, inventory }: Props) {
+function ClassificationContent({ goal, t, lang, sealStates, progress, inventory, editSeal }: Props) {
   const data = useMemo(() => integrateGoalClassifications([goal], {
     contextKey: `goal:${goal.id}`,
     sealStates, progress,
@@ -120,6 +121,7 @@ function ClassificationContent({ goal, t, lang, sealStates, progress, inventory 
               <div><dt>{t.newSeals}</dt><dd>{metricValue(option.metrics.additionalSeals)}</dd></div>
               <div><dt>{t.gcRecorded}</dt><dd>{metricValue(option.metrics.progressReuse)}</dd></div>
             </dl>
+            {editSeal && <button className="quiet" onClick={() => editSeal(option.sealId, option.finalQuantity)}>{t.ppUpdateSeals}</button>}
           </article>
         }
         const item = entry.item

@@ -20,7 +20,8 @@ export function planningGoalLabel(goal:TamerGoal,t:Record<string,string>,lang:La
   return `${goal.metric.system==='seals'?'Seal Master':'D-Unit'} · ${[attribute,qualifier].filter(Boolean).join(' ')} (${unit}) · +${goalDisplayValue(goal.metric,goal.desiredGain).toLocaleString(locales[lang],{maximumFractionDigits:2})}`
 }
 
-export function GoalRecommendations({goal,t,lang,sealStates,progress,go,viewSet}:{
+export function GoalRecommendations({goal,t,lang,sealStates,progress,go,viewSet,editSeal}:{
+  editSeal?:(id:string,destination:number)=>void;
   goal:TamerGoal;t:Record<string,string>;lang:Lang;sealStates:SealStateMap;progress:DUnitProgress;
   go:(tab:'codex'|'dunit'|'tamer')=>void;viewSet?:(id:string)=>void;
 }) {
@@ -50,7 +51,7 @@ export function GoalRecommendations({goal,t,lang,sealStates,progress,go,viewSet}
                 <h3>{localizedSealName(item.seal,lang)}</h3><strong>{t.gain}: {formatValue(item.bonusGain,item.seal.attribute,locale)}</strong>
                 <span>{t.current}: {number(item.quantity)} · {t.destination}: {number(item.finalQuantity)} ({item.levelLabel})</span>
                 <span>{t.newSeals}: {number(item.additionalSeals)}</span><span>{t.ppTickets}: {number(item.tickets)} · {t.ppOpenersNeeded}: {number(item.openers)}</span>
-                <button className="quiet" onClick={()=>go('codex')}>{t.ppUpdateSeals}</button>
+                <button className="quiet" onClick={()=>editSeal?editSeal(item.seal.id,item.finalQuantity):go('codex')}>{t.ppUpdateSeals}</button>
               </article>)}{sets.slice(0,limit).map(item=><article className="tamer-goal-card" key={item.set.id}>
                 <h3>{item.set.name}</h3><span>{item.done}/{item.set.conditions.length} {t.tgConditions}</span>
                 {goal.type==='attribute'&&<strong>{t.pvPendingGain}: {item.pendingGain===null?t.pvUnknown:`+${value(item.pendingGain)}`}</strong>}

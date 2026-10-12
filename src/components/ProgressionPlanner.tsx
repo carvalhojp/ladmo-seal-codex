@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { emptyTamerGoals, type GoalPlannerIntent, type TamerGoalsState } from '../utils/tamerGoals'
+import { deriveTamerGoal, emptyTamerGoals, goalPlannerIntent, goalTotals, type GoalPlannerIntent, type TamerGoalsState } from '../utils/tamerGoals'
+import { formatValue } from '../utils/calculations'
 import { resolvePlanningGoal } from '../utils/goalRecommendations'
 import { GoalRecommendations, planningGoalLabel } from './GoalRecommendations'
 import type { Lang } from '../App'
@@ -8,22 +9,35 @@ import type { SealStateMap } from '../utils/sealState'
 import { dUnitPlayerStateFromInventory, type DUnitInventory, type DUnitProgress } from '../utils/dUnit'
 import { mainProgressionAttributes, otherProgressionAttributes, progressionObjectiveLabelKey, progressionSystems, progressionUnit, type ProgressionObjective, type ProgressionSystem } from '../utils/progressionPlanner'
 import { PageHead } from './PageHead'
-import { GoalPlanner } from './GoalPlanner'
+import { GoalPlanner, type SealRouteConfirmation } from './GoalPlanner'
 import { DUnitGoalPlanner } from './DUnitGoalPlanner'
 
 export const progressionPlannerTab='goal'
-export function ProgressionPlanner({t,lang,sealStates,progress,inventory,ticketBudget,go,addRecommendation,toggle,intent,consumeIntent,navigation,goals=emptyTamerGoals(),goalsBlocked=false,viewSet}:{
+export function ProgressionPlanner({t,lang,sealStates,progress,inventory,ticketBudget,go,addRecommendation,toggle,intent,consumeIntent,navigation,goals=emptyTamerGoals(),goalsBlocked=false,viewSet,editSeal}:{
+  editSeal?:(id:string,destination:number,confirmation?:SealRouteConfirmation)=>void;
   goals?:TamerGoalsState;goalsBlocked?:boolean;viewSet?:(id:string)=>void;
   navigation?:{objective:ProgressionObjective|'';system:ProgressionSystem|null;goalId?:string;selectGoal?:(id:string)=>void;go:(objective:ProgressionObjective|'',system:ProgressionSystem|null,replace?:boolean)=>void};
   intent?:GoalPlannerIntent|null;consumeIntent?:()=>void;
   t:Record<string,string>;lang:Lang;sealStates:SealStateMap;progress:DUnitProgress;inventory:DUnitInventory;ticketBudget:number;
-  go:(tab:'codex'|'dunit'|'tamer')=>void;addRecommendation:(id:string,quantity:number)=>void;toggle:(setId:string,conditionId:string,checked:boolean)=>void;
+  go:(tab:'codex'|'dunit'|'tamer')=>void;addRecommendation:(id:string,quantity:number,confirmation?:SealRouteConfirmation)=>void;toggle:(setId:string,conditionId:string,checked:boolean)=>void;
 }) {
   const [localObjective,setObjective]=useState<ProgressionObjective|''>('')
   const [localSystem,setSystem]=useState<ProgressionSystem|null>(null)
   const objective=navigation?navigation.objective:localObjective
   const system=navigation?navigation.system:localSystem
   const selected=resolvePlanningGoal(navigation?.goalId,goals,goalsBlocked)
+  const selectedGoal=selected.status==='selected'?selected.goal:null
+  const sealContext=useMemo(()=>{
+    if(!selectedGoal || selectedGoal.type!=='attribute' || selectedGoal.metric.system!=='seals')return null
+    const totals=goalTotals(sealStates,progress)
+    return {
+      goal:selectedGoal,
+      attribute:selectedGoal.metric.attribute,
+      result:deriveTamerGoal(selectedGoal,totals,progress),
+      intent:goalPlannerIntent(selectedGoal,totals,progress),
+    }
+  },[selectedGoal,sealStates,progress])
+  const locale={pt:'pt-BR',en:'en-US',es:'es',ko:'ko-KR'}[lang]
   const consumed=useRef<GoalPlannerIntent|null>(null)
   const [prefill,setPrefill]=useState<(GoalPlannerIntent & { sequence:number })|null>(null)
   useEffect(()=>{
@@ -44,11 +58,32 @@ export function ProgressionPlanner({t,lang,sealStates,progress,inventory,ticketB
       <option value="">{t.pvFree}</option>{selected.status==='unavailable'&&navigation?.goalId&&<option value={navigation.goalId}>{t.pvUnavailable}</option>}
       {!goalsBlocked&&goals.goals.map(goal=><option key={goal.id} value={goal.id}>{planningGoalLabel(goal,t,lang)}</option>)}
     </select>{goalsBlocked&&<p role="status">{t.tgBlocked}</p>}<div className="tamer-actions"><button className="quiet" onClick={()=>go('tamer')}>{t.tamerManageGoals}</button>{selected.status!=='none'&&<button className="quiet" onClick={()=>selectGoal('')}>{t.pvFree}</button>}</div></section>
-    {selected.status==='unavailable'?<section className="tamer-panel" role="status"><p>{t.pvUnavailable}</p></section>:selected.status==='selected'?<GoalRecommendations key={selected.goal.id} goal={selected.goal} t={t} lang={lang} sealStates={sealStates} progress={progress} go={go} viewSet={viewSet}/>:<>
+    {selected.status==='unavailable'?<section className="tamer-panel" role="status"><p>{t.pvUnavailable}</p></section>:selected.status==='selected'?(sealContext?<>
+      <section className="tamer-panel progression-goal-summary" aria-label={t.pvGoal}>
+        <h2>{planningGoalLabel(sealContext.goal,t,lang)}</h2>
+        <p>{t.ppRecorded}</p>
+        {!sealContext.result?<p role="status">{t.pvUnknownDetail}</p>:<>
+          <dl className="tamer-stats">
+            <div><dt>{t.pvTarget}</dt><dd>{formatValue(sealContext.goal.baseline+sealContext.goal.desiredGain,sealContext.attribute,locale)}</dd></div>
+            <div><dt>{t.ppCurrent}</dt><dd>{formatValue(sealContext.result.current,sealContext.attribute,locale)}</dd></div>
+            <div><dt>{t.tgRemaining}</dt><dd>{formatValue(sealContext.result.remaining,sealContext.attribute,locale)}</dd></div>
+          </dl>
+          <p>{sealContext.result.complete?t.tgComplete:t.tgActive}</p>
+        </>}
+      </section>
+      {sealContext.result&&<GoalPlanner
+        key={sealContext.goal.id}
+        goalDraft={sealContext.intent?.draft??'0'}
+        goalTarget={sealContext.goal.baseline+sealContext.goal.desiredGain}
+        attribute={sealContext.attribute}
+        t={t} lang={lang} sealStates={sealStates} go={go}
+        addRecommendation={addRecommendation} ticketBudget={ticketBudget} editSeal={editSeal}
+      />}
+    </>:<GoalRecommendations key={selected.goal.id} goal={selected.goal} t={t} lang={lang} sealStates={sealStates} progress={progress} go={go} viewSet={viewSet} editSeal={editSeal}/>):<>
     <section className="progression-objective"><label htmlFor="progression-objective">{t.ppObjective}</label><select id="progression-objective" value={objective} onChange={event=>choose(event.target.value as ProgressionObjective|'')}><option value="">{t.ppChoose}</option><optgroup label={t.ppMain}>{mainProgressionAttributes.map(value=><option key={value} value={value}>{value}</option>)}</optgroup><optgroup label={t.ppOther}>{otherProgressionAttributes.map(value=><option key={value} value={value}>{label(value)}</option>)}</optgroup></select><p>{t.ppSimulation}</p><button className="quiet" onClick={()=>go('tamer')}>{t.ppView}</button></section>
     {objective&&<><section className="progression-paths"><h2>{t.ppPaths}</h2><p>{t.ppSeparate}</p><div className="subtabs">{systems.map(value=><button key={value} aria-pressed={system===value} className={system===value?'active':''} onClick={()=>{setSystem(value);navigation?.go(objective,value)}}>{value==='seals'?'Seal Master':'D-Unit'} · {label(objective)} ({progressionUnit(objective,value)==='percent'?'%':t.ppPoints})</button>)}</div></section>
       <div key={prefill?`${objective}:${prefill.sequence}`:objective}>
-        {systems.includes('seals')&&<div hidden={system!=='seals'}><GoalPlanner initialDraft={prefill?.objective===objective&&prefill.system==='seals'?prefill.draft:undefined} t={t} lang={lang} attribute={objective as Attribute} sealStates={sealStates} go={go} addRecommendation={addRecommendation} ticketBudget={ticketBudget}/></div>}
+        {systems.includes('seals')&&<div hidden={system!=='seals'}><GoalPlanner initialDraft={prefill?.objective===objective&&prefill.system==='seals'?prefill.draft:undefined} t={t} lang={lang} attribute={objective as Attribute} sealStates={sealStates} go={go} addRecommendation={addRecommendation} ticketBudget={ticketBudget} editSeal={editSeal}/></div>}
         <div hidden={system!=='dunit'}><DUnitGoalPlanner initialDraft={prefill?.objective===objective&&prefill.system==='dunit'?prefill.draft:undefined} initialBonusKey={prefill?.objective===objective&&prefill.system==='dunit'?prefill.bonusKey:undefined} t={t} lang={lang} objective={objective} progress={progress} toggle={toggle} playerState={playerState} go={()=>go('dunit')}/></div>
       </div>
     </>}

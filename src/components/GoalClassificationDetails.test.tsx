@@ -97,6 +97,16 @@ afterEach(async () => {
 })
 
 describe('Complementary information with real React rendering', () => {
+  it('opens the selected stable Seal ID and exact stage destination without modifying progress', async () => {
+    const p = props(), editSeal = vi.fn(), before = JSON.stringify(p.sealStates)
+    await render({ ...p, editSeal, t: { ...p.t, ppUpdateSeals: 'Atualizar meus Selos' } })
+    await toggle(true)
+    const options = integrate([p.goal], { contextKey: `goal:${p.goal.id}`, sealStates: p.sealStates, progress: p.progress, inventory: {} })[0].sealAlternatives
+    const buttons = [...host.querySelectorAll('button')].filter(button => button.textContent === 'Atualizar meus Selos')
+    await act(async () => buttons[1].click())
+    expect(editSeal).toHaveBeenCalledExactlyOnceWith(options[1].classification.sealId, options[1].classification.finalQuantity)
+    expect(JSON.stringify(p.sealStates)).toBe(before)
+  })
   it('classifies only on opening and unmounts content on closing', async () => {
     const classify = vi.spyOn(integration, 'integrateGoalClassifications')
     const search = vi.spyOn(dunit, 'calculateDUnitGoalRoute')

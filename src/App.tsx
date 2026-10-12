@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Calculator, ChevronRight, CircleHelp, Coins, ExternalLink, Gauge, GitBranch, Globe2, Heart, Lightbulb, Menu, Search, SlidersHorizontal, Sparkles, Swords, Ticket, X } from 'lucide-react'
 import { seals } from './data/seals'
 import { levels, type Attribute, type OwnedSeal, type Seal } from './types'
@@ -13,9 +13,11 @@ import { Updates } from './components/Updates'
 import { navigationUpdateCopy } from './data/updates'
 import { Home } from './components/Home'
 import { ProgressionPlanner } from './components/ProgressionPlanner'
+import type { SealRouteConfirmation } from './components/GoalPlanner'
 import { progressionPlannerCopy } from './data/progressionPlannerCopy'
 import { MySeals } from './components/MySeals'
 import { MyTamer } from './components/MyTamer'
+import { SealProgressEditor } from './components/SealProgressEditor'
 import { myTamerCopy } from './data/myTamerCopy'
 import { Progress } from './components/Progress'
 import { BuffDeckProgression } from './components/BuffDeckProgression'
@@ -187,6 +189,15 @@ Object.assign(dunitPlannerPresentationText.es,{dunitGoalTip:'Primero registra en
 Object.assign(dunitPlannerPresentationText.ko,{dunitGoalTip:'먼저 D-Unit Codex에서 이미 완료한 세트와 조건을 등록하세요. 그러면 경로가 현재 진행도를 반영합니다.',dunitGoToCodex:'D-Unit Codex로 이동',dunitHomeSets:'D-Unit 세트',dunitHomeConditions:'등록된 조건',dunitWhatIs:'D-Unit이란?',dunitWhatIsText:'D-Unit은 유니온 시스템이라고도 하며, 서로 다른 디지몬 세트의 특정 조건을 완료하면 추가 보너스를 얻을 수 있습니다. 조건에는 디지몬 획득, 레벨, 초월 및 각 세트에 정의된 기타 요구 사항이 포함될 수 있습니다.',dunitImportanceText:'완료한 각 조건은 세트에 표시된 보너스를 제공합니다. D-Unit 진행도를 추적하면 이미 보유한 속성과 캐릭터를 강화하기 위해 아직 완료할 수 있는 조건을 파악할 수 있습니다.',dunitHowToUse:'Codex에서 D-Unit 사용하기',dunitHowToUseText:'D-Unit Codex에서 이미 완료한 조건을 표시할 수 있습니다. “속성 목표” 플래너는 이 진행도를 사용하여 아직 획득할 수 있는 추가 보너스만 고려합니다.',dunitFlowRegister:'완료한 조건 등록',dunitFlowTarget:'원하는 속성 설정',dunitFlowRoutes:'가능한 경로 확인'})
 
 function App(){
+ const [editedSeal,setEditedSeal]=useState<{seal:Seal;destination:number;confirmation?:SealRouteConfirmation}|null>(null)
+ const pendingSealSave=useRef<{before:SealStateMap;after:SealStateMap;confirmation:SealRouteConfirmation}|null>(null)
+ const persistedSealState=useRef<SealStateMap|null>(null)
+ const [sealSaveAttempt,setSealSaveAttempt]=useState(0)
+ const [routeSealConflict,setRouteSealConflict]=useState(false)
+ const editSeal=(id:string,destination:number,confirmation?:SealRouteConfirmation)=>{
+   const seal=seals.find(item=>item.id===id)
+   if(seal){setRouteSealConflict(false);setEditedSeal({seal,destination,confirmation})}
+ }
  const [navigation,navigate]=useNavigation()
  const tab=navigation.tab,mineMode=navigation.tab==='mine'?navigation.section:'seals',progressMode=navigation.tab==='progress'?navigation.section:'seals'
  const [initialLocalState]=useState(()=>playerDataRepository.loadLocalState())
@@ -196,18 +207,65 @@ function App(){
  const [plannerIntent,setPlannerIntent]=useState<GoalPlannerIntent|null>(null),[requestedSet,setRequestedSet]=useState<string|null>(null)
  const saveGoals=(next:TamerGoalsState)=>{playerDataRepository.saveTamerGoals(next);setGoals(next)}
  const [lang,setLang]=useState<Lang>(()=>initialLocalState.language), [sealStates,setSealStates]=useState<SealStateMap>(()=>initialLocalState.seals), [dunitProgress,setDunitProgress]=useState<DUnitProgressState>(()=>initialLocalState.dUnitProgress), [dunitInventory,setDunitInventory]=useState<DUnitInventory>(()=>initialLocalState.dUnitInventory), [ticketBudget,setTicketBudget]=useState(()=>initialLocalState.ticketBudget), [openerBudget,setOpenerBudget]=useState(()=>initialLocalState.openerBudget), [menu,setMenu]=useState(false)
- const owned=toOwnedSeals(sealStates); const t:any=Object.assign({},translationGroups.copy[lang],translationGroups.extraCopy[lang],translationGroups.sourceCopy[lang],translationGroups.uiCopy[lang],translationGroups.sourceDetailCopy[lang],translationGroups.roundCopy[lang],translationGroups.dunitUpdateCopy[lang],translationGroups.buffDeckCopy[lang],translationGroups.ticketBudgetCopy[lang],translationGroups.equipmentCopy[lang],translationGroups.equipmentProgressionCopy[lang],tamerGoalsCopy[lang],saveCopy[lang],myTamerCopy[lang],progressionPlannerCopy[lang],dunitText[lang],dunitFilterText[lang],dunitCostText[lang],dunitInventoryText[lang],dunitPlannerPresentationText[lang],{dunitRouteCandidate:dunitRouteCandidateText[lang],dunitCostUnverified:dunitCostUnverifiedText[lang],dunitSkillDamageSubtypeLabels:dunitSkillDamageSubtypeLabels[lang]}); useEffect(()=>playerDataRepository.saveLanguage(lang),[lang]); useEffect(()=>playerDataRepository.saveSealState(sealStates),[sealStates]); useEffect(()=>playerDataRepository.saveDUnitProgress(dunitProgress),[dunitProgress]); useEffect(()=>playerDataRepository.saveDUnitInventory(dunitInventory),[dunitInventory]); useEffect(()=>playerDataRepository.saveTicketBudget(ticketBudget),[ticketBudget]); useEffect(()=>playerDataRepository.saveOpenerBudget(openerBudget),[openerBudget])
+ const owned=toOwnedSeals(sealStates); const t:any=Object.assign({},translationGroups.copy[lang],translationGroups.extraCopy[lang],translationGroups.sourceCopy[lang],translationGroups.uiCopy[lang],translationGroups.sourceDetailCopy[lang],translationGroups.roundCopy[lang],translationGroups.dunitUpdateCopy[lang],translationGroups.buffDeckCopy[lang],translationGroups.ticketBudgetCopy[lang],translationGroups.equipmentCopy[lang],translationGroups.equipmentProgressionCopy[lang],tamerGoalsCopy[lang],saveCopy[lang],myTamerCopy[lang],progressionPlannerCopy[lang],dunitText[lang],dunitFilterText[lang],dunitCostText[lang],dunitInventoryText[lang],dunitPlannerPresentationText[lang],{dunitRouteCandidate:dunitRouteCandidateText[lang],dunitCostUnverified:dunitCostUnverifiedText[lang],dunitSkillDamageSubtypeLabels:dunitSkillDamageSubtypeLabels[lang]}); useEffect(()=>playerDataRepository.saveLanguage(lang),[lang]);
+ useEffect(()=>{
+   try{
+     playerDataRepository.saveSealState(sealStates)
+     persistedSealState.current=sealStates
+   }catch(error){
+     persistedSealState.current=null
+     const receipt=pendingSealSave.current
+     pendingSealSave.current=null
+     receipt?.confirmation.failed()
+     throw error
+   }
+ },[sealStates]); useEffect(()=>playerDataRepository.saveDUnitProgress(dunitProgress),[dunitProgress]); useEffect(()=>playerDataRepository.saveDUnitInventory(dunitInventory),[dunitInventory]); useEffect(()=>playerDataRepository.saveTicketBudget(ticketBudget),[ticketBudget]); useEffect(()=>playerDataRepository.saveOpenerBudget(openerBudget),[openerBudget])
+ useEffect(()=>{
+   const receipt=pendingSealSave.current
+   if(!receipt)return
+   pendingSealSave.current=null
+   let accepted=false
+   try{
+     accepted=receipt.after===sealStates&&persistedSealState.current===sealStates&&
+       receipt.confirmation.saved(receipt.before,receipt.after)
+   }finally{
+     if(!accepted){receipt.confirmation.failed();setRouteSealConflict(true)}
+   }
+ },[sealStates,sealSaveAttempt])
  Object.assign(t,equipmentProgressCopy[lang],navigationUpdateCopy[lang])
  const go=(x:Tab,section?:string,objective?:ProgressionObjective,goalId?:string)=>{if(x!==tab||section!==undefined)navigate({tab:x,section,objective,goalId});setMenu(false);window.scrollTo({top:0,behavior:'smooth'})}; const state=(id:string)=>getSealState(sealStates,id); const qty=(id:string)=>state(id).quantity
- const patchState=(id:string,patch:Parameters<typeof updateSealState>[2])=>setSealStates(x=>updateSealState(x,id,patch)); const addRecommendation=(id:string,additionalQuantity:number)=>setSealStates(x=>addRecommendedQuantity(x,id,additionalQuantity)); const setQty=(id:string,quantity:number)=>patchState(id,{quantity:Math.max(0,quantity),hasSeal:quantity>0||state(id).hasSeal})
+ const patchState=(id:string,patch:Parameters<typeof updateSealState>[2])=>setSealStates(x=>updateSealState(x,id,patch))
+ const commitRouteSeal=(next:SealStateMap,confirmation:SealRouteConfirmation)=>{
+   const before=sealStates
+   if(pendingSealSave.current||!confirmation.prepare(before,next)){
+     confirmation.failed();setRouteSealConflict(true);return false
+   }
+   setRouteSealConflict(false)
+   pendingSealSave.current={before,after:next,confirmation}
+   // Pure updater: reject concurrent maps without overwriting them.
+   setSealStates(current=>current===before?next:current)
+   setSealSaveAttempt(value=>value+1)
+   return true
+ }
+ const addRecommendation=(id:string,additionalQuantity:number,confirmation?:SealRouteConfirmation)=>{
+   if(!confirmation){setSealStates(x=>addRecommendedQuantity(x,id,additionalQuantity));return}
+   commitRouteSeal(addRecommendedQuantity(sealStates,id,additionalQuantity),confirmation)
+ }
+ const saveEditedSeal=(id:string,patch:Parameters<typeof updateSealState>[2])=>{
+   const confirmation=editedSeal?.confirmation
+   if(!confirmation){patchState(id,patch);return}
+   commitRouteSeal(updateSealState(sealStates,id,patch),confirmation)
+ }
+ const setQty=(id:string,quantity:number)=>patchState(id,{quantity:Math.max(0,quantity),hasSeal:quantity>0||state(id).hasSeal})
  const toggleDunit=(setId:string,conditionId:string,checked:boolean)=>setDunitProgress(value=>toggleDUnitCondition(value,setId,conditionId,checked)); const patchDunitInventory=(id:string,patch:Parameters<typeof updateDUnitInventory>[2])=>setDunitInventory(value=>updateDUnitInventory(value,id,patch)); const exportSave=()=>{if(goalsBlocked||equipmentBlocked)throw new Error('Player data unavailable');return createLadmoSave({data:{seals:sealStates,dUnitProgress:dunitProgress,dUnitInventory:dunitInventory,goals,equipment:equipmentProgress},preferences:{language:lang}})}; const importSave=(save:LadmoSave)=>{playerDataRepository.replaceSaveData(save);setSealStates(save.data.seals);setDunitProgress(save.data.dUnitProgress);setDunitInventory(save.data.dUnitInventory);setLang(save.preferences.language);setGoals(goalsFromSave(save));setGoalsBlocked(false);if(save.version===3){setEquipmentProgress(save.data.equipment);setEquipmentBlocked(false)}}; const nav: [Tab,string,typeof BookOpen][]=[['codex',t.codex,BookOpen],['dunit',t.dunitCodex,BookOpen],['goal',t.goal,Calculator],['equipment',t.equipment,Swords],['buffDecks',t.buffDecks,GitBranch],['tamer',t.myTamer,Gauge],['mine',t.mine,Heart],['progress',t.progress,Gauge],['learn',t.learn,CircleHelp],['updates',t.updates,BookOpen],['about',t.about,Lightbulb]]
  return <><header className="site-header"><button className="brand" onClick={()=>go('home')}><img src={avatarUrl}/><span>LADMO <b>SEAL</b><small>CODEX</small></span></button><nav className={menu?'show':''}>{nav.map(([id,label,Icon])=><button className={tab===id?'active':''} key={id} onClick={()=>go(id)}><Icon size={16}/>{label}</button>)}</nav><div className="header-actions"><select aria-label={t.languageLabel} value={lang} onChange={e=>setLang(e.target.value as Lang)}><option value="pt">PT-BR</option><option value="en">EN</option><option value="es">ES</option><option value="ko">KO / 한국어</option></select><button className="icon mobile" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</button></div></header>
  <main>
- {tab==='tamer'&&<MyTamer t={t} lang={lang} equipment={equipmentProgress} equipmentBlocked={equipmentBlocked} sealStates={sealStates} progress={dunitProgress} inventory={dunitInventory} goalsProps={{state:goals,blocked:goalsBlocked,save:saveGoals,plan:intent=>{setPlannerIntent(intent);go('goal',intent.system,intent.objective,intent.id)},viewSet:id=>{setRequestedSet(id);go('dunit')}}} navigate={destination=>{if(destination==='mySeals'||destination==='myDUnit')go('mine',destination==='mySeals'?'seals':'dunit');else if(destination==='equipmentProgress')go('equipment','progress');else go(destination)}}/>}
+ {routeSealConflict&&<div className="progression-status" role="alert">{t.seConflict}</div>}
+ {tab==='tamer'&&<MyTamer t={t} lang={lang} equipment={equipmentProgress} equipmentBlocked={equipmentBlocked} sealStates={sealStates} progress={dunitProgress} inventory={dunitInventory} editSeal={editSeal} goalsProps={{state:goals,blocked:goalsBlocked,save:saveGoals,plan:intent=>{setPlannerIntent(intent);go('goal',intent.system,intent.objective,intent.id)},viewSet:id=>{setRequestedSet(id);go('dunit')}}} navigate={destination=>{if(destination==='mySeals'||destination==='myDUnit')go('mine',destination==='mySeals'?'seals':'dunit');else if(destination==='equipmentProgress')go('equipment','progress');else go(destination)}}/>}
  {tab==='home'&&<Home t={t} go={go} owned={owned}/>}
  {tab==='codex'&&<SealCodex t={t} lang={lang} state={state} patchState={patchState}/>}
  {tab==='dunit'&&<DUnitCodex requestedSet={requestedSet} consumeRequest={()=>setRequestedSet(null)} t={t} progress={dunitProgress} toggle={toggleDunit}/>}
- {tab==='goal'&&<ProgressionPlanner goals={goals} goalsBlocked={goalsBlocked} viewSet={id=>{setRequestedSet(id);go('dunit')}} navigation={{objective:navigation.objective??'',system:(navigation.section as ProgressionSystem)??null,goalId:navigation.goalId,selectGoal:id=>navigate({tab:'goal',goalId:id||undefined}),go:(objective,system,replace)=>navigate({tab:'goal',section:system??undefined,objective:objective||undefined},replace)}} intent={plannerIntent} consumeIntent={()=>setPlannerIntent(null)} t={t} lang={lang} sealStates={sealStates} progress={dunitProgress} inventory={dunitInventory} ticketBudget={ticketBudget} go={go} addRecommendation={addRecommendation} toggle={toggleDunit}/>}
+ {tab==='goal'&&<ProgressionPlanner goals={goals} goalsBlocked={goalsBlocked} editSeal={editSeal} viewSet={id=>{setRequestedSet(id);go('dunit')}} navigation={{objective:navigation.objective??'',system:(navigation.section as ProgressionSystem)??null,goalId:navigation.goalId,selectGoal:id=>navigate({tab:'goal',goalId:id||undefined}),go:(objective,system,replace)=>navigate({tab:'goal',section:system??undefined,objective:objective||undefined},replace)}} intent={plannerIntent} consumeIntent={()=>setPlannerIntent(null)} t={t} lang={lang} sealStates={sealStates} progress={dunitProgress} inventory={dunitInventory} ticketBudget={ticketBudget} go={go} addRecommendation={addRecommendation} toggle={toggleDunit}/>}
  {tab==='equipment'&&<Equipment navigation={{view:navigation.section as EquipmentView,go:view=>navigate({tab:'equipment',section:view})}} t={t} lang={lang} progress={equipmentProgress} blocked={equipmentBlocked} saveProgress={saveEquipment}/>}
  {tab==='buffDecks'&&<BuffDeckProgression t={t}/>}
  {tab==='mine'&&<><div className="subtabs"><button className={mineMode==='seals'?'active':''} onClick={()=>navigate({tab:'mine',section:'seals'})}>{t.mine}</button><button className={mineMode==='dunit'?'active':''} onClick={()=>navigate({tab:'mine',section:'dunit'})}>{t.myDUnit}</button></div>{mineMode==='seals'?<MySeals t={t} lang={lang} states={sealStates} state={state} patchState={patchState}/>:<MyDUnit t={t} progress={dunitProgress} toggle={toggleDunit} inventory={dunitInventory} updateInventory={patchDunitInventory}/>}</>}
@@ -217,6 +275,7 @@ function App(){
  {tab==='updates'&&<Updates t={t}/>}
  {tab==='about'&&<About t={t} exportSave={exportSave} importSave={importSave} reset={()=>{if(!window.confirm(t.resetLocalDataConfirmation))return;playerDataRepository.clearLocalData();setGoals(emptyTamerGoals());setGoalsBlocked(false);setEquipmentProgress(emptyEquipmentProgress());setEquipmentBlocked(false);setSealStates({});setDunitProgress({});setDunitInventory({});setTicketBudget(500);setOpenerBudget(20)}}/>}
  </main>
+ {editedSeal && <SealProgressEditor key={editedSeal.seal.id} seal={editedSeal.seal} destination={editedSeal.destination} states={sealStates} t={t} lang={lang} patchState={saveEditedSeal} close={()=>setEditedSeal(null)} openCodex={()=>{setEditedSeal(null);go('codex')}}/>}
  <footer><div className="footer-brand"><img src={avatarUrl}/>NadaNerd Live</div><span>{t.official} {t.footerDisclaimer}</span><div><a href="https://www.youtube.com/@nadanerdlive" target="_blank">YouTube <ExternalLink size={13}/></a><a href="https://www.twitch.tv/nadanerd" target="_blank">Twitch <ExternalLink size={13}/></a></div></footer></>
 }
 export default App
