@@ -56,7 +56,7 @@ export function ProgressionPlanner({t,lang,sealStates,progress,inventory,ticketB
     <PageHead eyebrow="LADMO CODEX" title={t.ppTitle} text={t.ppIntro}/>
     <section className="progression-objective"><label htmlFor="planning-goal">{t.pvGoal}</label><select id="planning-goal" value={navigation?.goalId??''} onChange={event=>selectGoal(event.target.value)} disabled={goalsBlocked}>
       <option value="">{t.pvFree}</option>{selected.status==='unavailable'&&navigation?.goalId&&<option value={navigation.goalId}>{t.pvUnavailable}</option>}
-      {!goalsBlocked&&goals.goals.map(goal=><option key={goal.id} value={goal.id}>{planningGoalLabel(goal,t,lang)}</option>)}
+      {!goalsBlocked&&goals.goals.map(goal=><option key={goal.id} value={goal.id}>{planningGoalLabel(goal,t,lang)}{goal.archived?` — ${t.tgArchivedLabel}`:''}</option>)}
     </select>{goalsBlocked&&<p role="status">{t.tgBlocked}</p>}<div className="tamer-actions"><button className="quiet" onClick={()=>go('tamer')}>{t.tamerManageGoals}</button>{selected.status!=='none'&&<button className="quiet" onClick={()=>selectGoal('')}>{t.pvFree}</button>}</div></section>
     {selected.status==='unavailable'?<section className="tamer-panel" role="status"><p>{t.pvUnavailable}</p></section>:selected.status==='selected'?(sealContext?<>
       <section className="tamer-panel progression-goal-summary" aria-label={t.pvGoal}>

@@ -1,5 +1,6 @@
 export interface UpdateEntry { date: string; category: 'new'; changes: string[]; titleKey?: string }
 export const updates: UpdateEntry[] = [
+  { date:'12/10/2026', category:'new', titleKey:'acquisitionUpdateTitle', changes:['acquisitionUpdateOne','acquisitionUpdateTwo','acquisitionUpdateThree','acquisitionUpdateFour','acquisitionUpdateFive'] },
   { date:'11/10/2026', category:'new', titleKey:'sealPlanningUpdateTitle', changes:['sealPlanningUpdateOne','sealPlanningUpdateTwo','sealPlanningUpdateThree','sealPlanningUpdateFour','sealPlanningUpdateFive','sealPlanningUpdateSix'] },
   { date:'08/10/2026', category:'new', titleKey:'planningV2UpdateTitle', changes:['planningV2UpdateOne','planningV2UpdateTwo','planningV2UpdateThree','planningV2UpdateFour'] },
   { date:'08/10/2026', category:'new', titleKey:'tamerV2UpdateTitle', changes:['tamerV2UpdateOne','tamerV2UpdateTwo'] },
@@ -17,6 +18,12 @@ export const updates: UpdateEntry[] = [
 ]
 export const navigationUpdateCopy = {
   pt: {
+    acquisitionUpdateTitle:'Planejamento V2 — Acompanhamento de aquisições e metas arquivadas',
+    acquisitionUpdateOne:'Acompanhe cada Selo da rota com quantidade inicial, total registrado, destino e quantidade restante. Veja o progresso das aquisições e as etapas concluídas, separados do progresso da meta de atributos.',
+    acquisitionUpdateTwo:'Registre aquisições parciais e sequenciais ou corrija quantidades, mantendo os destinos, ganhos e custos originais da rota, sem recálculo automático.',
+    acquisitionUpdateThree:'Alterne entre Somente pendentes e Todos os itens. A barra de progresso ganhou uma apresentação mais clara, adaptada para celular.',
+    acquisitionUpdateFour:'Recalcular após registrar aquisições pede confirmação: a nova rota usa seus Selos atuais e reinicia apenas o acompanhamento, sem apagar os registros.',
+    acquisitionUpdateFive:'No Meu Tamer, arquive metas concluídas e restaure-as quando quiser. Elas permanecem salvas e continuam contando no limite de três metas.',
     sealPlanningUpdateTitle: 'Planejamento V2 — Metas de Selos e registro de progresso',
     sealPlanningUpdateOne: 'Acesse a calculadora de Selos diretamente pelas metas cadastradas no Meu Tamer.',
     sealPlanningUpdateTwo: 'A calculadora considera o atributo desejado e o progresso que ainda falta para concluir a meta.',
@@ -35,6 +42,12 @@ export const navigationUpdateCopy = {
     navigationUpdateThree: 'Os atalhos Planejar e Ver conjunto continuam levando ao destino correto e agora participam do histórico de navegação.',
   },
   en: {
+    acquisitionUpdateTitle:'Planning V2 — Acquisition tracking and archived goals',
+    acquisitionUpdateOne:'Track each Seal in your route with its starting quantity, recorded total, target and remaining quantity. View acquisition progress and completed steps separately from attribute goal progress.',
+    acquisitionUpdateTwo:'Record partial and sequential acquisitions or correct quantities while keeping the route’s original targets, gains and costs, without automatic recalculation.',
+    acquisitionUpdateThree:'Switch between Pending only and All items. The progress bar now has a clearer, mobile-friendly layout.',
+    acquisitionUpdateFour:'Recalculating after recording acquisitions asks for confirmation: the new route uses your current Seals and restarts tracking only, without deleting your records.',
+    acquisitionUpdateFive:'In My Tamer, archive completed goals and restore them whenever you like. They stay saved and still count toward the three-goal limit.',
     sealPlanningUpdateTitle: 'Planning V2 — Seal goals and progress tracking',
     sealPlanningUpdateOne: 'Open the Seal calculator directly from your saved My Tamer goals.',
     sealPlanningUpdateTwo: 'The calculator uses your chosen attribute and the remaining progress needed to complete your goal.',
@@ -53,6 +66,12 @@ export const navigationUpdateCopy = {
     navigationUpdateThree: 'Plan and View set still open the correct destination and now participate in navigation history.',
   },
   es: {
+    acquisitionUpdateTitle:'Planificación V2 — Seguimiento de adquisiciones y metas archivadas',
+    acquisitionUpdateOne:'Sigue cada Sello de la ruta con su cantidad inicial, total registrado, destino y cantidad restante. Consulta el progreso de las adquisiciones y los pasos completados por separado del progreso de la meta de atributos.',
+    acquisitionUpdateTwo:'Registra adquisiciones parciales y consecutivas o corrige cantidades manteniendo los destinos, bonos y costos originales de la ruta, sin recálculo automático.',
+    acquisitionUpdateThree:'Alterna entre Solo pendientes y Todos los elementos. La barra de progreso tiene una presentación más clara y adaptada al móvil.',
+    acquisitionUpdateFour:'Recalcular después de registrar adquisiciones requiere confirmación: la nueva ruta usa tus Sellos actuales y reinicia solo el seguimiento, sin borrar los registros.',
+    acquisitionUpdateFive:'En Mi Tamer, archiva metas completadas y restáuralas cuando quieras. Permanecen guardadas y siguen contando para el límite de tres metas.',
     sealPlanningUpdateTitle: 'Planificación V2 — Metas de Sellos y registro del progreso',
     sealPlanningUpdateOne: 'Accede a la calculadora de Sellos directamente desde las metas guardadas en Mi Tamer.',
     sealPlanningUpdateTwo: 'La calculadora considera el atributo elegido y el progreso que falta para completar la meta.',
@@ -71,6 +90,12 @@ export const navigationUpdateCopy = {
     navigationUpdateThree: 'Planificar y Ver conjunto siguen abriendo el destino correcto y ahora forman parte del historial de navegación.',
   },
   ko: {
+    acquisitionUpdateTitle:'계획 V2 — 획득 진행도와 목표 보관',
+    acquisitionUpdateOne:'경로의 각 Seal에 대해 시작 수량, 기록한 총수량, 목표 수량과 남은 수량을 확인하세요. 획득 진행도와 완료한 단계는 능력치 목표 진행도와 별도로 표시됩니다.',
+    acquisitionUpdateTwo:'일부 수량을 여러 번 기록하거나 잘못 입력한 수량을 수정해도 경로의 원래 목표, 보너스와 비용은 유지되며 자동으로 다시 계산하지 않습니다.',
+    acquisitionUpdateThree:'미완료만 보기와 모든 항목을 전환할 수 있습니다. 진행도 막대는 모바일에서도 더 명확하게 표시됩니다.',
+    acquisitionUpdateFour:'획득 수량을 기록한 뒤 다시 계산하려면 확인이 필요합니다. 현재 Seal 수량으로 새 경로를 만들고 경로 추적만 다시 시작하며 기록은 삭제하지 않습니다.',
+    acquisitionUpdateFive:'내 테이머에서 완료한 목표를 보관하고 언제든 복원하세요. 보관한 목표도 저장되며 최대 3개 제한에 포함됩니다.',
     sealPlanningUpdateTitle: '진행 계획 V2 — Seal 목표와 진행도 기록',
     sealPlanningUpdateOne: '내 테이머에 등록한 목표에서 Seal 계산기를 바로 열 수 있습니다.',
     sealPlanningUpdateTwo: '계산기는 선택한 능력치와 목표 완료까지 남은 진행도를 반영합니다.',

@@ -8,7 +8,7 @@ import { mainProgressionAttributes, otherProgressionAttributes, progressionDUnit
 
 export const tamerGoalsKey = 'ladmo-tamer-goals-v1'
 export type GoalMetric = { system: 'seals'; attribute: Attribute } | { system: 'dunit'; bonusKey: DUnitBonusKey }
-export type TamerGoal = { id: string } & ({ type: 'attribute'; metric: GoalMetric; baseline: number; desiredGain: number } | { type: 'dunit-set'; setId: string })
+export type TamerGoal = { id: string; archived?: boolean } & ({ type: 'attribute'; metric: GoalMetric; baseline: number; desiredGain: number } | { type: 'dunit-set'; setId: string })
 export interface TamerGoalsState { version: 1; goals: TamerGoal[] }
 export type GoalsLoad = { state: TamerGoalsState; error?: 'invalid' | 'version' | 'storage' }
 export const emptyTamerGoals = (): TamerGoalsState => ({ version: 1, goals: [] })
@@ -23,9 +23,11 @@ export function validateTamerGoals(raw: unknown): TamerGoalsState | null {
   for (const goal of raw.goals) {
     if (!object(goal) || typeof goal.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(goal.id) || ids.has(goal.id)) return null
     ids.add(goal.id)
+    if (goal.archived !== undefined && typeof goal.archived !== 'boolean') return null
+    const archive = goal.archived === undefined ? {} : { archived: goal.archived }
     if (goal.type === 'dunit-set') {
       if (typeof goal.setId !== 'string' || !/^dunit-[1-9]\d*$/.test(goal.setId)) return null
-      goals.push({ id: goal.id, type: 'dunit-set', setId: goal.setId })
+      goals.push({ id: goal.id, ...archive, type: 'dunit-set', setId: goal.setId })
     } else if (goal.type === 'attribute') {
       if (!object(goal.metric) || !number(goal.baseline) || !number(goal.desiredGain) || goal.desiredGain <= 0 || goal.baseline + goal.desiredGain > Number.MAX_SAFE_INTEGER) return null
       let metric: GoalMetric
@@ -35,7 +37,7 @@ export function validateTamerGoals(raw: unknown): TamerGoalsState | null {
       const unit = metric.system === 'seals' ? progressionUnit(metric.attribute, 'seals') : metric.bonusKey.split('|')[2]
       if ((metric.system === 'seals' || unit === 'absolute') && !Number.isSafeInteger(goal.desiredGain)) return null
       if (metric.system === 'dunit' && unit === 'percent' && Math.abs(goal.desiredGain * 100 - Math.round(goal.desiredGain * 100)) > 0.000001) return null
-      goals.push({ id: goal.id, type: 'attribute', metric, baseline: goal.baseline, desiredGain: goal.desiredGain })
+      goals.push({ id: goal.id, ...archive, type: 'attribute', metric, baseline: goal.baseline, desiredGain: goal.desiredGain })
     } else return null
   }
   return { version: 1, goals }

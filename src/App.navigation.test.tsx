@@ -82,6 +82,21 @@ beforeEach(()=>{
 afterEach(()=>{unmount();vi.unstubAllGlobals();vi.restoreAllMocks()})
 
 describe('App session-history integration',()=>{
+  it('keeps archived goal IDs selectable and restores archived hash destinations after F5',()=>{
+    const goal={id:'archived-navigation',type:'attribute',metric:{system:'seals',attribute:'HT'},baseline:0,desiredGain:5000,archived:true}
+    values['ladmo-tamer-goals-v1']=JSON.stringify({version:1,goals:[goal]})
+    mount('#goal/seals?goal=archived-navigation')
+    const before={...values}
+    let planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
+    expect(child(planner,GoalPlanner).key).toBe(goal.id)
+    const option=nodes(planner,n=>n.type==='option'&&n.props.value===goal.id)[0]
+    expect(text(option)).toContain('Arquivada')
+    unmount();tree=render(App)
+    planner=render(ProgressionPlanner,child(tree,ProgressionPlanner).props)
+    expect(child(planner,GoalPlanner).key).toBe(goal.id)
+    expect(browser.location.hash).toBe('#goal/seals?goal=archived-navigation')
+    expect(values).toEqual(before)
+  })
   it('opens the Seal calculator from My Tamer without changing the saved goal',()=>{
     values['ladmo-seal-state-v2']=JSON.stringify({})
     values['ladmo-tamer-goals-v1']=JSON.stringify({

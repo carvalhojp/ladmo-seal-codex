@@ -12,6 +12,25 @@ const totals = (ht:number) => ({...goalTotals({},{}),seals:{...goalTotals({},{})
 const storage = (values:Record<string,string> = {}) => ({getItem:(key:string)=>values[key]??null,setItem:(key:string,value:string)=>{values[key]=value},removeItem:(key:string)=>{delete values[key]}})
 
 describe('Tamer goals',()=>{
+  it('preserves optional archive flags for both goal types and rejects invalid flags',()=>{
+    const setGoal:TamerGoal={id:'archived-set',type:'dunit-set',setId:dUnitSets[0].id,archived:true}
+    const input={version:1,goals:[{...goal,archived:false},setGoal]}
+    expect(validateTamerGoals(input)).toEqual(input)
+    expect(validateTamerGoals(state())).toEqual(state())
+    for(const archived of [null,0,1,'true',{},[]])expect(validateTamerGoals({version:1,goals:[{...goal,archived}]})).toBeNull()
+    expect(validateTamerGoals({version:1,goals:[0,1,2,3].map(i=>({...goal,id:`archived-${i}`,archived:true}))})).toBeNull()
+  })
+  it('persists archives through the repository and reload without touching player progress',()=>{
+    const values:Record<string,string>={'ladmo-seal-state-v2':'{}','ladmo-dunit-progress-v1':'{}',external:'keep'}
+    const io=storage(values),repo=createLocalPlayerDataRepository(()=>io)
+    const archived={version:1 as const,goals:[{...goal,archived:true}]}
+    repo.saveTamerGoals(archived)
+    expect(createLocalPlayerDataRepository(()=>io).loadLocalState().goals.state).toEqual(archived)
+    expect(Object.keys(values).sort()).toEqual(['external','ladmo-dunit-progress-v1','ladmo-seal-state-v2',tamerGoalsKey].sort())
+    expect(values['ladmo-seal-state-v2']).toBe('{}');expect(values['ladmo-dunit-progress-v1']).toBe('{}')
+    expect(deriveTamerGoal(archived.goals[0],totals(700),{})).toMatchObject({complete:false,remaining:500})
+    expect(archived.goals[0].archived).toBe(true)
+  })
   it.each([[700,0,500,false],[900,200,300,false],[1300,500,0,true],[1000,300,200,false],[600,0,600,false]])('derives baseline progress at %i', (current,done,remaining,complete)=>{
     expect(deriveTamerGoal(goal,totals(current),{})).toMatchObject({done,remaining,complete})
   })

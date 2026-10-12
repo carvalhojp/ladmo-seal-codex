@@ -3,7 +3,7 @@ import { act, Component, StrictMode, type ComponentProps, type ReactNode } from 
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
-import { GoalPlanner, type SealRouteConfirmation } from './GoalPlanner'
+import { GoalPlanner, routeAcquisitionProgress, type SealRouteConfirmation } from './GoalPlanner'
 import { seals } from '../data/seals'
 import { progressionPlannerCopy } from '../data/progressionPlannerCopy'
 import { tamerGoalsCopy } from '../data/tamerGoalsCopy'
@@ -120,6 +120,101 @@ beforeEach(()=>{
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.restoreAllMocks();vi.unstubAllGlobals()})
 
 describe('goal-linked registration with real App and React',()=>{
+  it('investigates free AT 1000 partial Guilmon editing and both filters without replacing the route',async()=>{
+    // The manual inventory/exclusions were not supplied. Use the real catalogue
+    // with every quantity at zero and no exclusions; never mock the optimizer.
+    localStorage.setItem('ladmo-lang',JSON.stringify('pt'))
+    localStorage.setItem('ladmo-seal-state-v2',JSON.stringify({}))
+    localStorage.setItem('ladmo-tamer-goals-v1',JSON.stringify({version:1,goals:[]}))
+    window.history.replaceState(null,'','#goal')
+    await renderApp()
+    // Select through the actual UI so the test also covers coordinator state.
+    await select('#progression-objective','AT')
+    const path=[...host.querySelectorAll<HTMLButtonElement>('button')].find(button=>button.textContent?.startsWith('Seal Master')&&button.hasAttribute('aria-pressed'))!
+    if(path.getAttribute('aria-pressed')!=='true')await click(path)
+    await input('#seal-target','1000')
+    const optimize=vi.spyOn(engine,'optimizeGoal')
+    await clickText(copy.ppCalculateSeal)
+    expect(optimize).toHaveBeenCalledTimes(1)
+    const originalPlan=optimize.mock.results[0].value as engine.GoalPlan
+    expect(originalPlan).toBeTruthy()
+    const original=JSON.stringify(originalPlan),destinations=snapshotDestinations()
+    const guilmon=originalPlan.recommendations.find(item=>item.seal.name==='Guilmon')!
+    expect(guilmon).toBeTruthy();expect(guilmon.finalQuantity).toBe(200)
+    expect(guilmon.finalQuantity-guilmon.additionalSeals).toBe(0)
+    console.info('AT 1000 zero-inventory diagnostic',{
+      gain:originalPlan.totalBonus,seals:originalPlan.totalAdditionalSeals,
+      tickets:originalPlan.totalTickets,openers:originalPlan.totalOpeners,steps:destinations.length,
+    })
+    const summary=()=>host.querySelector('.plan-output > .plan-stats')!.textContent
+    const originalSummary=summary(),originalHeading=host.querySelector('.plan-output h2')!.textContent
+    const progress=()=>host.querySelector<HTMLProgressElement>('progress[aria-label="'+copy.ppRouteQuantityProgress+'"]')!
+    expect(progress().value).toBe(0)
+    const plannerInput=host.querySelector('#seal-target')!
+    await click(editorButtons().find(button=>button.dataset.sealId===guilmon.seal.id)!)
+    await input('[role="dialog"] input','20');await clickText(copy.seReview);await clickText(copy.seConfirm)
+    expect(states()[guilmon.seal.id].quantity).toBe(20)
+    expect(host.querySelector('#seal-target')).toBe(plannerInput) // no remount
+    expect(optimize).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(originalPlan)).toBe(original)
+    expect(snapshotDestinations()).toEqual(destinations)
+    expect(summary()).toBe(originalSummary);expect(host.querySelector('.plan-output h2')!.textContent).toBe(originalHeading)
+    expect(progress().value).toBeCloseTo(20/originalPlan.totalAdditionalSeals*100,8)
+    const guilmonRow=()=>[...host.querySelectorAll<HTMLElement>('.plan-row')].find(row=>row.querySelector<HTMLButtonElement>('[data-seal-id]')?.dataset.sealId===guilmon.seal.id)!
+    expect(guilmonRow().querySelector('.recommendation-add')!.textContent).toContain('180')
+    expect(host.textContent).toContain(copy.ppSealStale)
+    expect(editorButtons().every(button=>!button.disabled)).toBe(true)
+    for(const filter of [copy.ppOnlyPending,copy.ppAllItems,copy.ppOnlyPending,copy.ppAllItems]){
+      await clickText(filter)
+      expect(registerButtons()).toHaveLength(destinations.length)
+      expect(guilmonRow()).toBeTruthy();expect(snapshotDestinations()).toEqual(destinations)
+      expect(summary()).toBe(originalSummary);expect(optimize).toHaveBeenCalledTimes(1)
+      expect(progress().value).toBeCloseTo(20/originalPlan.totalAdditionalSeals*100,8)
+    }
+    for(const quantity of [75,150,200,75]){
+      await click(guilmonRow().querySelector<HTMLButtonElement>('[data-seal-id]')!)
+      expect(host.querySelector('[role="dialog"]')!.textContent).toContain(String(states()[guilmon.seal.id].quantity))
+      await input('[role="dialog"] input',String(quantity));await clickText(copy.seReview);await clickText(copy.seConfirm)
+      expect(states()[guilmon.seal.id].quantity).toBe(quantity)
+      expect(snapshotDestinations()).toEqual(destinations);expect(summary()).toBe(originalSummary)
+      expect(JSON.stringify(originalPlan)).toBe(original)
+      expect(progress().value).toBeCloseTo(quantity/originalPlan.totalAdditionalSeals*100,8)
+      await clickText(copy.ppOnlyPending)
+      expect(registerButtons()).toHaveLength(destinations.length-(quantity===200?1:0))
+      await clickText(copy.ppAllItems)
+      expect(guilmonRow().textContent).toContain(String(200-quantity))
+      expect(optimize).toHaveBeenCalledTimes(1)
+    }
+    await clickText(copy.ppCalculateSeal)
+    expect(host.querySelector('[role="alertdialog"]')).not.toBeNull()
+    await clickText(copy.ppKeepRoute)
+    expect(snapshotDestinations()).toEqual(destinations)
+    await act(async()=>root.unmount());root=createRoot(host);await renderApp()
+    expect(states()[guilmon.seal.id].quantity).toBe(75)
+    expect(host.querySelector('progress[aria-label="'+copy.ppRouteQuantityProgress+'"]')).toBeNull()
+  })
+  it('archives and restores a completed goal through real App persistence and F5',async()=>{
+    await mount();await calculate()
+    await click(registerButtons()[0]);await click(registerButtons()[1])
+    const t=capture.props!.t,sealsBefore=localStorage.getItem('ladmo-seal-state-v2'),dunitBefore=localStorage.getItem('ladmo-dunit-progress-v1')
+    const openGoals=async()=>{
+      const details=host.querySelector<HTMLDetailsElement>('section[aria-labelledby="tamer-goals-summary"] details')!
+      await act(async()=>{details.open=true;details.dispatchEvent(new Event('toggle'))})
+    }
+    await click([...host.querySelectorAll<HTMLButtonElement>('nav button')].find(button=>button.textContent===t.myTamer)!)
+    await openGoals();await clickText(tamerGoalsCopy.pt.tgArchive)
+    expect(JSON.parse(localStorage.getItem('ladmo-tamer-goals-v1')!).goals).toEqual([{...goal,archived:true}])
+    expect(host.querySelector<HTMLDetailsElement>('details > summary')?.parentElement).toBeTruthy()
+    await act(async()=>root.unmount());root=createRoot(host);await renderApp();await openGoals()
+    const archive=[...host.querySelectorAll<HTMLDetailsElement>('details')].find(details=>details.querySelector('summary')?.textContent?.startsWith(tamerGoalsCopy.pt.tgArchivedGoals))!
+    expect(archive).toBeTruthy();expect(archive.open).toBe(false)
+    expect(archive.textContent).toContain(tamerGoalsCopy.pt.tgComplete)
+    await clickText(tamerGoalsCopy.pt.tgRestore)
+    expect(JSON.parse(localStorage.getItem('ladmo-tamer-goals-v1')!).goals).toEqual([{...goal,archived:false}])
+    expect(localStorage.getItem('ladmo-seal-state-v2')).toBe(sealsBefore)
+    expect(localStorage.getItem('ladmo-dunit-progress-v1')).toBe(dunitBefore)
+    expect(localStorage.getItem('external-test-key')).toBe('preserve')
+  })
   it.each(['acquisition','contextual'] as const)('registers two original totals sequentially through %s',async method=>{
     await mount();const optimize=vi.spyOn(engine,'optimizeGoal');await calculate()
     const original=snapshotDestinations(),savedGoal=localStorage.getItem('ladmo-tamer-goals-v1')
@@ -147,6 +242,7 @@ describe('goal-linked registration with real App and React',()=>{
     original.forEach(item=>expect(states()[item.id].quantity).toBe(item.total))
     expect(host.querySelector('#seal-target')).not.toBeNull()
     expect(host.querySelectorAll('.plan-row')).toHaveLength(0);expect(optimize).toHaveBeenCalledTimes(1)
+    expect(host.querySelector('progress[aria-label="'+copy.ppRouteQuantityProgress+'"]')).toBeNull()
   })
   it('keeps a partial contextual edit pending and permits finishing its original total',async()=>{
     await mount();const optimize=vi.spyOn(engine,'optimizeGoal');await calculate()
@@ -159,6 +255,28 @@ describe('goal-linked registration with real App and React',()=>{
     await click(registerButtons()[0])
     expect(states()[original[0].id].quantity).toBe(original[0].total)
     expect(registerButtons()[0].disabled).toBe(true);expect(registerButtons()[1].disabled).toBe(false)
+    expect(optimize).toHaveBeenCalledTimes(1)
+  })
+  it('filters only the view and updates quantity progress without recalculating',async()=>{
+    await mount();const optimize=vi.spyOn(engine,'optimizeGoal');await calculate()
+    const original=snapshotDestinations(),progress=()=>host.querySelector<HTMLProgressElement>('progress[aria-label="'+copy.ppRouteQuantityProgress+'"]')!
+    expect(progress().value).toBe(0)
+    await click(editorButtons()[0]);await input('[role="dialog"] input','2001')
+    await clickText(copy.seReview);await clickText(copy.seCancel)
+    expect(progress().value).toBe(0)
+    await click(editorButtons()[0]);await input('[role="dialog"] input','2001')
+    await clickText(copy.seReview);await clickText(copy.seConfirm)
+    expect(progress().value).toBeGreaterThan(0);expect(progress().value).toBeLessThan(100)
+    expect(host.querySelector('.plan-row')!.textContent).toContain('2.001')
+    await click(registerButtons()[0]);expect(progress().value).toBeGreaterThan(0)
+    await clickText(copy.ppOnlyPending)
+    expect(registerButtons()).toHaveLength(1)
+    expect(snapshotDestinations()).toEqual([original[1]])
+    await clickText(copy.ppAllItems);expect(snapshotDestinations()).toEqual(original)
+    await click(registerButtons()[1]);expect(progress().value).toBe(100)
+    await clickText(copy.ppOnlyPending);expect(registerButtons()).toHaveLength(0)
+    expect(host.textContent).toContain(copy.ppNoPendingAcquisitions)
+    await clickText(copy.ppAllItems);expect(snapshotDestinations()).toEqual(original)
     expect(optimize).toHaveBeenCalledTimes(1)
   })
   it('cancel performs no preparation, acknowledgement or write',async()=>{
@@ -223,6 +341,11 @@ describe('goal-linked registration with real App and React',()=>{
   it('does not let an old confirmation invalidate a subsequently calculated route',async()=>{
     await mount();const optimize=vi.spyOn(engine,'optimizeGoal');await calculate();await click(registerButtons()[0])
     const old=capture.transition!;expect(old).not.toBeNull();await clickText(copy.ppCalculateSeal)
+    expect(optimize).toHaveBeenCalledTimes(1)
+    await clickText(copy.ppKeepRoute)
+    expect(snapshotDestinations()).toHaveLength(2)
+    await clickText(copy.ppCalculateSeal)
+    await click(host.querySelector<HTMLButtonElement>('[role="alertdialog"] button:last-child')!)
     const newDestinations=snapshotDestinations();expect(newDestinations).toHaveLength(1)
     await act(async()=>{old.confirmation.failed();expect(old.confirmation.saved(old.before,old.after)).toBe(false)})
     expect(snapshotDestinations()).toEqual(newDestinations);expect(editorButtons()[0].disabled).toBe(false)
@@ -242,6 +365,9 @@ describe('goal-linked registration with real App and React',()=>{
     expect(goalTotals(states(),{}).seals.HT).toBe(bonus)
     expect(registerButtons().every(button=>button.disabled)).toBe(true)
     expect(editorButtons().every(button=>button.disabled)).toBe(true);expect(optimize).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain(copy.ppSealStale)
+    await clickText(copy.ppOnlyPending)
+    expect(registerButtons().every(button=>button.disabled)).toBe(true)
   })
   it('preserves free planning and sequential acquisition without session callbacks',async()=>{
     await mount();await select('#planning-goal','');await select('#progression-objective','HT')
@@ -249,8 +375,9 @@ describe('goal-linked registration with real App and React',()=>{
     if(path.getAttribute('aria-pressed')!=='true')await click(path)
     await input('#seal-target',String(desiredGain));const optimize=vi.spyOn(engine,'optimizeGoal');await calculate()
     const original=snapshotDestinations();await click(registerButtons()[0])
-    expect(registerButtons()[1].disabled).toBe(false);expect(editorButtons()[1].disabled).toBe(true)
+    expect(registerButtons()[1].disabled).toBe(false);expect(editorButtons()[1].disabled).toBe(false)
     await click(registerButtons()[1]);original.forEach(item=>expect(states()[item.id].quantity).toBe(item.total))
+    expect(host.querySelector<HTMLProgressElement>('progress[aria-label="'+copy.ppRouteQuantityProgress+'"]')!.value).toBe(100)
     expect(capture.transition).toBeNull();expect(optimize).toHaveBeenCalledTimes(1)
   })
   it('preserves contextual editing in free planning before and after a save',async()=>{
@@ -265,10 +392,51 @@ describe('goal-linked registration with real App and React',()=>{
     expect(editorButtons()[0].disabled).toBe(false);expect(capture.transition).toBeNull()
     await click(editorButtons()[0]);await input('[role="dialog"] input','2001');await clickText(copy.seReview);await clickText(copy.seConfirm)
     expect(states()[original[0].id].quantity).toBe(2001);expect(snapshotDestinations()).toEqual(original)
-    expect(editorButtons().every(button=>button.disabled)).toBe(true);expect(registerButtons()[1].disabled).toBe(false)
+    expect(editorButtons().every(button=>!button.disabled)).toBe(true);expect(registerButtons()[1].disabled).toBe(false)
     expect(capture.transition).toBeNull();expect(optimize).toHaveBeenCalledTimes(1)
-    await clickText(copy.ppCalculateSeal);expect(editorButtons().every(button=>!button.disabled)).toBe(true)
+    const recorded=localStorage.getItem('ladmo-seal-state-v2')
+    const progressBefore=host.querySelector<HTMLProgressElement>('progress')!.value
+    await clickText(copy.ppCalculateSeal)
+    expect(host.querySelector('[role="alertdialog"]')?.textContent).toContain(copy.ppRecalculateWarning)
+    expect(optimize).toHaveBeenCalledTimes(1)
+    await clickText(copy.ppKeepRoute)
+    expect(snapshotDestinations()).toEqual(original)
+    expect(host.querySelector<HTMLProgressElement>('progress')!.value).toBe(progressBefore)
+    expect(localStorage.getItem('ladmo-seal-state-v2')).toBe(recorded)
+    await clickText(copy.ppCalculateSeal)
+    await click(host.querySelector<HTMLButtonElement>('[role="alertdialog"] button:last-child')!)
+    expect(editorButtons().every(button=>!button.disabled)).toBe(true)
+    expect(localStorage.getItem('ladmo-seal-state-v2')).toBe(recorded)
+    expect(host.querySelector<HTMLProgressElement>('progress[aria-label="'+copy.ppRouteQuantityProgress+'"]')!.value).toBe(0)
     expect(optimize).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('route acquisition quantities',()=>{
+  it.each(['pt','en','es','ko'] as const)('provides localized route confirmation and pending explanation in %s',lang=>{
+    const text=progressionPlannerCopy[lang]
+    expect(text.ppKeepRoute).toBeTruthy()
+    expect(text.ppAllPending).toBeTruthy()
+    expect(text.ppRecalculateWarning).toBeTruthy()
+    if(lang!=='pt')expect(text.ppRecalculateWarning).not.toBe(copy.ppRecalculateWarning)
+  })
+  const seal=selected[0]
+  const plan:engine.GoalPlan={recommendations:[{seal,level:'bronze',levelLabel:'Bronze',finalQuantity:50,additionalSeals:50,bonusGain:1,tickets:1,openers:1}],totalBonus:1,totalTickets:1,totalOpeners:1,totalAdditionalSeals:50,excess:0}
+  it('keeps the original total and calculates 30 remaining after registering 20',()=>{
+    const result=routeAcquisitionProgress(plan,{[seal.id]:{quantity:20,hasSeal:true,doNotRecommend:false}})
+    expect(result.percent).toBe(40);expect(result.completed).toBe(0)
+    expect(result.items[0]).toMatchObject({initial:0,current:20,remaining:30,acquired:20})
+    expect(plan.recommendations[0].finalQuantity).toBe(50)
+  })
+  it('caps over-target quantities and excludes pre-existing quantities from progress',()=>{
+    expect(routeAcquisitionProgress(plan,{[seal.id]:{quantity:80,hasSeal:true,doNotRecommend:false}})).toMatchObject({percent:100,completed:1})
+    const partial={...plan,recommendations:[{...plan.recommendations[0],additionalSeals:30}]}
+    expect(routeAcquisitionProgress(partial,{[seal.id]:{quantity:10,hasSeal:true,doNotRecommend:false}}).percent).toBe(0)
+    expect(routeAcquisitionProgress(partial,{[seal.id]:{quantity:35,hasSeal:true,doNotRecommend:false}}).percent).toBe(50)
+  })
+  it('handles empty routes and zero additional quantities without division by zero',()=>{
+    expect(routeAcquisitionProgress({...plan,recommendations:[]},{})).toMatchObject({percent:0,completed:0})
+    expect(routeAcquisitionProgress({...plan,recommendations:[{...plan.recommendations[0],additionalSeals:0}]},{}).percent).toBe(0)
   })
 })
 

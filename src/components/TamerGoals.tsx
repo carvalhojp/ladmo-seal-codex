@@ -45,6 +45,7 @@ export function TamerGoals({ t, lang, sealStates, progress, inventory, editSeal,
         if (!dUnitSets.some(set => set.id === setId)) throw new Error('Set required')
         goal = { id: newTamerGoalId(state.goals), type: 'dunit-set', setId }
       }
+      if (existing?.archived !== undefined) goal = { ...goal, archived: existing.archived }
       save({ version: 1, goals: editing ? state.goals.map(item => item.id === editing ? goal : item) : [...state.goals, goal] })
       setOpen(false); setMessage(t.tgSaved)
     } catch { setMessage(t.tgError) }
@@ -52,6 +53,14 @@ export function TamerGoals({ t, lang, sealStates, progress, inventory, editSeal,
   const remove = (id: string) => {
     if (!window.confirm(t.tgRemoveConfirm)) return
     try { save({ version: 1, goals: state.goals.filter(goal => goal.id !== id) }); if (editing === id) setOpen(false); setMessage(t.tgRemoved) } catch { setMessage(t.tgError) }
+  }
+  const setArchived = (id: string, archived: boolean) => {
+    const goal = state.goals.find(item => item.id === id)
+    if (blocked || !goal || archived && !deriveTamerGoal(goal, totals, progress)?.complete) return
+    try {
+      save({ version: 1, goals: state.goals.map(item => item.id === id ? { ...item, archived } : item) })
+      setMessage(archived ? t.tgArchived : t.tgRestored)
+    } catch { setMessage(t.tgError) }
   }
   return <section className="tamer-panel tamer-goals" aria-labelledby="tamer-goals-title">
     <h2 id="tamer-goals-title">{t.tgTitle}</h2><p>{t.tgRecorded}</p>
@@ -68,7 +77,11 @@ export function TamerGoals({ t, lang, sealStates, progress, inventory, editSeal,
       </> : <><label>{t.tgSearch}<input value={query} onChange={event => setQuery(event.target.value)} /></label><label>{t.tgSet}<select value={setId} onChange={event => setSetId(event.target.value)} required><option value="">{t.tgChoose}</option>{dUnitSets.filter(set => set.id === setId || set.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(set => <option key={set.id} value={set.id}>{set.name}</option>)}</select></label></>}
       <div className="tamer-actions"><button className="primary" type="submit">{t.tgSave}</button><button className="quiet" type="button" onClick={() => setOpen(false)}>{t.tgCancel}</button></div>
     </form>}
-    <div className="tamer-goal-list">{state.goals.map(goal => {
+    {state.goals.length > 0 && state.goals.every(goal=>goal.archived) && <p>{t.tgNoMainGoals}</p>}
+    {[false,true].map(archived => {
+      const goals = state.goals.filter(goal=>Boolean(goal.archived)===archived)
+      if (archived && goals.length===0) return null
+      const cards = goals.map(goal => {
       const result = deriveTamerGoal(goal, totals, progress)
       const title = goal.type === 'attribute' ? `${t.tgAttribute}: +${format(goal.metric, goal.desiredGain)} ${label(goal.metric)}` : dUnitSets.find(set => set.id === goal.setId)?.name ?? t.tgUnavailable
       const intent = goalPlannerIntent(goal, totals, progress)
@@ -80,8 +93,15 @@ export function TamerGoals({ t, lang, sealStates, progress, inventory, editSeal,
           key={goal.id} goal={goal} t={t} lang={lang}
           sealStates={sealStates} progress={progress} inventory={inventory} editSeal={editSeal}
         />}
+        <div className="tamer-actions">{goal.archived
+          ? <button className="quiet" disabled={blocked} onClick={()=>setArchived(goal.id,false)}>{t.tgRestore}</button>
+          : result?.complete && <button className="quiet" disabled={blocked} onClick={()=>setArchived(goal.id,true)}>{t.tgArchive}</button>}</div>
         <div className="tamer-actions">{goal.type === 'attribute' ? <><button className="quiet" disabled={!intent} onClick={() => intent && plan(intent)}>{t.tgPlan}</button><button className="quiet" disabled={blocked || !result} onClick={() => { setEditing(goal.id); setDraft(String(goalDisplayValue(goal.metric, goal.desiredGain))); setMessage(''); setOpen(true) }}>{t.tgEdit}</button></> : <button className="quiet" disabled={!result} onClick={() => viewSet(goal.setId)}>{t.tgView}</button>}<button className="quiet" disabled={blocked} onClick={() => remove(goal.id)}>{t.tgRemove}</button></div>
       </article>
-    })}</div>
+      })
+      return archived
+        ? <details className="tamer-details" key="archived"><summary>{t.tgArchivedGoals} ({goals.length})</summary><div className="tamer-goal-list">{cards}</div></details>
+        : <div className="tamer-goal-list" key="main">{cards}</div>
+    })}
   </section>
 }

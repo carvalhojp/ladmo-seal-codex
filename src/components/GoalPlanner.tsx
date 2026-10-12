@@ -14,6 +14,19 @@ export function createGoalPlanSnapshot(attribute: Attribute, goal: number, mode:
   return optimizeGoal(attribute, goal, seals, progressById, mode)
 }
 type PlannerStrategy = GoalStrategy | 'ticketLimit'
+export function routeAcquisitionProgress(plan:GoalPlan,states:SealStateMap) {
+  const items=plan.recommendations.map(item=>{
+    const initial=item.finalQuantity-item.additionalSeals
+    const current=getSealState(states,item.seal.id).quantity
+    const remaining=Math.max(0,item.finalQuantity-current)
+    const acquired=Math.min(Math.max(0,item.additionalSeals),Math.max(0,current-initial))
+    return {item,initial,current,remaining,acquired}
+  })
+  const expected=items.reduce((sum,row)=>sum+Math.max(0,row.item.additionalSeals),0)
+  const acquired=items.reduce((sum,row)=>sum+row.acquired,0)
+  return {items,completed:items.filter(row=>row.remaining===0).length,
+    percent:expected>0?Math.min(100,Math.max(0,acquired/expected*100)):0}
+}
 interface DisplaySnapshot extends TicketBudgetResult { attribute: Attribute; goal: number; ticketBudget?: number; source:SealStateMap; draft:string; mode:PlannerStrategy; budgetDraft:string }
 
 export interface SealRouteConfirmation {
@@ -60,6 +73,8 @@ export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ti
   const [confirmation,setConfirmation]=useState('')
   const [attempted,setAttempted]=useState(false)
   const [stale,setStale]=useState(false)
+  const [pendingOnly,setPendingOnly]=useState(false)
+  const [confirmRecalculation,setConfirmRecalculation]=useState(false)
   const inputRef=useRef<HTMLInputElement>(null),budgetRef=useRef<HTMLInputElement>(null),statusRef=useRef<HTMLDivElement>(null)
   const pendingAdditions=useRef(new Set<string>())
   const [goalContext,setGoalContext]=useState({attribute,draft:goalDraft,target:goalTarget})
@@ -128,12 +143,14 @@ export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ti
   const number=(value:number)=>value.toLocaleString(locale)
   const unitLabel=`${attribute} (${unit==='percent'?'%':t.ppPoints})`
   const invalidate=()=>{
+    setConfirmRecalculation(false)
     pendingConfirmation.current=null
     setAwaitingConfirmation(false)
     if(snapshot){setInvalidated(true);setSnapshot(null)}
   }
   const currentSnapshot=!requiresReconciliation&&snapshot&&snapshot.attribute===attribute&&snapshot.draft===draft&&snapshot.mode===mode&&snapshot.budgetDraft===budgetDraft?snapshot:null
   const outdated=Boolean(currentSnapshot&&(awaitingConfirmation||stale||currentSnapshot.source!==sealStates))
+  const acquisitions=currentSnapshot?.plan?routeAcquisitionProgress(currentSnapshot.plan,sealStates):null
   const routeConfirmation=(id:string):SealRouteConfirmation=>{
     const original=currentSnapshot
     let prepared:PendingRouteConfirmation|null=null
@@ -198,11 +215,16 @@ export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ti
     return {bonus:calculateAttributeTotals(owned,seals)[attribute],count:owned.filter(item=>{const seal=seals.find(s=>s.id===item.sealId);return seal?.attribute===attribute&&Boolean(levelFor(item.quantity,seal))}).length}
   },[attribute,sealStates])
   const strategyHelp={cheap:t.ppCheapHelp,openers:t.ppOpenersHelp,value:t.ppBalancedHelp,ticketLimit:t.ppLimitHelp}[mode]
-  const calculate=()=>{
+  const calculate=(confirmed=false)=>{
     if(requiresReconciliation||awaitingConfirmation)return
     setAttempted(true)
     if(!parsed.ok){inputRef.current?.focus();return}
     if(mode==='ticketLimit'&&budget===null){budgetRef.current?.focus();return}
+    if(!confirmed&&acquisitions?.items.some(row=>row.acquired>0)){
+      setConfirmRecalculation(true)
+      return
+    }
+    setConfirmRecalculation(false)
     const progressById=Object.fromEntries(seals.map(seal=>{const current=getSealState(sealStates,seal.id);return [seal.id,{quantity:current.quantity,doNotRecommend:current.doNotRecommend}]}))
     const result=mode==='ticketLimit'?optimizeGoalWithTicketLimit(attribute,parsed.value,seals,progressById,budget!):{plan:createGoalPlanSnapshot(attribute,parsed.value,mode,progressById),bestWithinBudget:null,additionalTicketsNeeded:null}
     pendingConfirmation.current=null
@@ -260,22 +282,41 @@ export function GoalPlanner({t,lang,attribute,sealStates,go,addRecommendation,ti
         <button type="submit" className="primary calculate-route" disabled={requiresReconciliation||awaitingConfirmation}>{t.ppCalculateSeal}</button>
       </form>
       <div className="plan-output" aria-live="polite"><span className="eyebrow">{t.ppRoute}</span>
-        {outdated&&<div className="progression-status" role="status"><b>{t.ppProgressUpdated}</b><p>{t.ppSealStale}</p><button className="quiet" onClick={calculate}>{t.ppRecalculateSeal}</button></div>}
+        {outdated&&<div className="progression-status" role="status"><b>{t.ppProgressUpdated}</b><p>{t.ppSealStale}</p><button className="quiet" onClick={()=>calculate()}>{t.ppRecalculateSeal}</button></div>}
+        {confirmRecalculation&&currentSnapshot&&<section className="progression-status" role="alertdialog" aria-label={t.ppRecalculateSeal} aria-describedby="seal-recalculate-warning">
+          <p id="seal-recalculate-warning">{t.ppRecalculateWarning}</p>
+          <div className="tamer-actions"><button type="button" className="quiet" onClick={()=>setConfirmRecalculation(false)}>{t.ppKeepRoute}</button><button type="button" className="quiet" disabled={requiresReconciliation||awaitingConfirmation} onClick={()=>calculate(true)}>{t.ppRecalculateSeal}</button></div>
+        </section>}
         {!currentSnapshot?<div className="empty">{t.ppReady}</div>:currentSnapshot.plan?<>
           <h2>{progressionText(t.ppSuccess,{gain:formatValue(currentSnapshot.plan.totalBonus,attribute,locale),target:formatValue(currentSnapshot.goal,attribute,locale)})}</h2>
+          <p>{t.ppOriginalRouteCosts}</p>
           <div className="plan-stats"><span>{t.ppTickets}: {number(currentSnapshot.plan.totalTickets)}</span><span>{t.newSeals}: {number(currentSnapshot.plan.totalAdditionalSeals)}</span><span>{t.ppOpenersNeeded}: {number(currentSnapshot.plan.totalOpeners)}</span></div><p>{t.ppOpenersNotice}</p>
           {currentSnapshot.ticketBudget!==undefined&&<div className="plan-stats"><span>{t.ppBudgetDeclared}: {number(currentSnapshot.ticketBudget)}</span><span>{t.ppMargin}: {number(currentSnapshot.ticketBudget-currentSnapshot.plan.totalTickets)}</span></div>}
           <h3>{t.ppUpdate}</h3><p>{t.ppRegisterHelp}</p>
-          {currentSnapshot.plan.recommendations.map(item=>{
+          {acquisitions&&<div className="progression-status seal-acquisition-progress">
+            <p>{progressionText(t.ppRouteSteps,{done:number(acquisitions.completed),total:number(acquisitions.items.length)})}</p>
+            <div className="seal-acquisition-percentage"><span>{t.ppRouteQuantityProgress}</span><strong>{acquisitions.percent.toLocaleString(locale,{maximumFractionDigits:1})}%</strong></div>
+            <progress aria-label={t.ppRouteQuantityProgress} max={100} value={acquisitions.percent}/>
+            <p>{t.ppRouteQuantityNotice}</p>
+            <div className="tamer-actions">
+              <button type="button" className="quiet" aria-pressed={pendingOnly} onClick={()=>setPendingOnly(true)}>{t.ppOnlyPending}</button>
+              <button type="button" className="quiet" aria-pressed={!pendingOnly} onClick={()=>setPendingOnly(false)}>{t.ppAllItems}</button>
+            </div>
+            {acquisitions.items.length>0&&acquisitions.completed===0&&<p>{t.ppAllPending}</p>}
+            {pendingOnly&&acquisitions.completed===acquisitions.items.length&&<p>{t.ppNoPendingAcquisitions}</p>}
+          </div>}
+          {currentSnapshot.plan.recommendations.filter(item=>!pendingOnly||getSealState(sealStates,item.seal.id).quantity<item.finalQuantity).map(item=>{
             const remaining=Math.max(0,item.finalQuantity-getSealState(sealStates,item.seal.id).quantity)
             const registered=remaining===0||pendingAdditions.current.has(item.seal.id)
             return <div className="plan-row" key={item.seal.id}>
               <span className={'attr '+attribute}>{attribute}</span>
-              <div><b>{localizedSealName(item.seal,lang)}</b><small>{item.levelLabel} · {t.current}: {number(item.finalQuantity-item.additionalSeals)} · {t.destination}: {number(item.finalQuantity)} · {t.needed}: {number(item.additionalSeals)} · {t.gain} {formatValue(item.bonusGain,attribute,locale)}</small></div>
+              <div><b>{localizedSealName(item.seal,lang)}</b><small>{item.levelLabel} · {t.ppRouteInitial}: {number(item.finalQuantity-item.additionalSeals)} · {t.seTotal}: {number(getSealState(sealStates,item.seal.id).quantity)} · {t.seSuggested}: {number(item.finalQuantity)} · {t.tgRemaining}: {number(remaining)} · {t.gain} {formatValue(item.bonusGain,attribute,locale)}</small></div>
               <strong>{number(item.tickets)} <small>{t.tickets} · {number(item.openers)} OP</small></strong>
               <button className="quiet recommendation-add" disabled={registered||(goalDraft!==undefined&&outdated)} onClick={()=>register(item.seal.id,item.finalQuantity)}>{registered?`✓ ${t.ppStepRegistered}`:progressionText(t.ppRegister,{quantity:number(remaining)})}</button>
-              {editSeal&&<button type="button" className="quiet" data-seal-id={item.seal.id} data-destination={item.finalQuantity} aria-label={`${t.ppUpdateSeals}: ${localizedSealName(item.seal,lang)}`} disabled={outdated} onClick={()=>{
-                if(outdated||!currentSnapshot)return
+              {editSeal&&<button type="button" className="quiet" data-seal-id={item.seal.id} data-destination={item.finalQuantity} aria-label={`${t.ppUpdateSeals}: ${localizedSealName(item.seal,lang)}`} disabled={goalDraft!==undefined&&outdated} onClick={()=>{
+                // Free planning edits recorded totals, not an automatic acquisition.
+                // Keep linked-route confirmation guards and the stale-route notice.
+                if((goalDraft!==undefined&&outdated)||!currentSnapshot)return
                 if(goalDraft!==undefined)editSeal(item.seal.id,item.finalQuantity,routeConfirmation(item.seal.id))
                 else editSeal(item.seal.id,item.finalQuantity)
               }}>{t.ppUpdateSeals}</button>}

@@ -502,6 +502,10 @@ describe('progression checklist snapshots',()=>{
     expect(focus).not.toHaveBeenCalled();expect(status.props.role).toBe('status')
     expect(props.ticketBudget).toBe(500);expect(text(tree)).toContain(t.ppSealStale)
     clickText(tree,t.ppRecalculateSeal);tree=render(GoalPlanner,props)
+    expect(engine).toHaveBeenCalledTimes(1)
+    const dialog=nodes(tree,node=>node.props.role==='alertdialog')[0]
+    expect(text(dialog)).toContain(t.ppRecalculateWarning)
+    clickText(dialog,t.ppRecalculateSeal);tree=render(GoalPlanner,props)
     expect(engine).toHaveBeenCalledTimes(2);expect(engine).toHaveBeenLastCalledWith('AT',500,seals,expect.objectContaining({[seals[0].id]:{quantity:300,doNotRecommend:false}}),'openers')
     expect(text(tree)).not.toContain(t.ppSealStale)
   })

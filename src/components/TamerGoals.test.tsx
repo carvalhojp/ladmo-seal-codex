@@ -50,6 +50,51 @@ const props=()=>{
   return props
 }
 describe('Tamer goals interface',()=>{
+  it('archives only completed goals, keeps the limit and restores without changing progress',()=>{
+    const p=props(),set=dUnitSets[0]
+    p.state={version:1,goals:[{id:'done',type:'dunit-set',setId:set.id},{id:'pending',type:'attribute',metric:{system:'seals',attribute:'AT'},baseline:0,desiredGain:300},{id:'other',type:'dunit-set',setId:'dunit-999999'}]}
+    p.progress={[set.id]:Object.fromEntries(set.conditions.map(c=>[c.id,true]))}
+    const before=JSON.stringify({seals:p.sealStates,progress:p.progress}),original=p.state.goals[0]
+    let tree=render(TamerGoals,p)
+    expect(nodes(tree,n=>n.type==='button'&&text(n)===t.tgArchive)).toHaveLength(1)
+    button(tree,t.tgArchive).props.onClick();tree=render(TamerGoals,p)
+    expect(p.state.goals[0]).toEqual({...original,archived:true})
+    const archive=nodes(tree,n=>n.type==='details'&&text(n).startsWith(t.tgArchivedGoals))[0]
+    expect(archive.props.open).toBeUndefined()
+    expect(nodes(archive,n=>n.type==='article').map(n=>n.key)).toEqual(['done'])
+    expect(button(tree,t.tgCreate).props.disabled).toBe(true)
+    p.progress={};tree=render(TamerGoals,p)
+    expect(p.state.goals[0].archived).toBe(true)
+    expect(text(nodes(tree,n=>n.type==='details'&&text(n).startsWith(t.tgArchivedGoals))[0])).toContain(t.tgActive)
+    button(tree,t.tgRestore).props.onClick();tree=render(TamerGoals,p)
+    expect(p.state.goals[0]).toEqual({...original,archived:false})
+    expect(button(tree,t.tgArchive)).toBeUndefined()
+    expect(p.sealStates).toEqual({});expect(p.progress).toEqual({})
+    expect(before).toContain(set.id)
+  })
+  it('preserves archive status, baseline, ID and metric while editing an archived goal',()=>{
+    const p=props(),goal={id:'edit-archived',type:'attribute' as const,metric:{system:'seals' as const,attribute:'AT' as const},baseline:20,desiredGain:300,archived:true}
+    p.state={version:1,goals:[goal]}
+    let tree=render(TamerGoals,p)
+    button(tree,t.tgEdit).props.onClick();tree=render(TamerGoals,p)
+    change(tree,t.tgGain,'400');tree=render(TamerGoals,p);submit(tree);tree=render(TamerGoals,p)
+    expect(p.state.goals[0]).toEqual({...goal,desiredGain:400})
+    expect(text(tree)).toContain(t.tgNoMainGoals)
+    expect(p.progress).toEqual({});expect(p.sealStates).toEqual({})
+  })
+  it('rejects archiving if completion is no longer true and reports write failures',()=>{
+    const p=props(),set=dUnitSets[0]
+    p.state={version:1,goals:[{id:'done',type:'dunit-set',setId:set.id}]}
+    p.progress={[set.id]:Object.fromEntries(set.conditions.map(c=>[c.id,true]))}
+    let tree=render(TamerGoals,p)
+    p.save.mockImplementation(()=>{throw new Error('full')})
+    button(tree,t.tgArchive).props.onClick();tree=render(TamerGoals,p)
+    expect(text(tree)).toContain(t.tgError);expect(p.state.goals[0].archived).toBeUndefined()
+    tree=render(TamerGoals,{...p,blocked:true})
+    expect(button(tree,t.tgArchive).props.disabled).toBe(true)
+    button(tree,t.tgArchive).props.onClick()
+    expect(p.save).toHaveBeenCalledTimes(1)
+  })
   it('reopens creation as an attribute goal after cancelling a set goal',()=>{
     const p=props(),existing={id:'existing',type:'dunit-set' as const,setId:dUnitSets[0].id}
     p.state={version:1,goals:[existing]}

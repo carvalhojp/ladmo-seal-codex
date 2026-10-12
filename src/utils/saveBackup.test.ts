@@ -1,4 +1,4 @@
-import { emptyTamerGoals } from './tamerGoals'
+import { emptyTamerGoals, readTamerGoals, type TamerGoalsState } from './tamerGoals'
 import { describe, expect, it } from 'vitest'
 import { dUnitSets } from '../data/dUnitAudit'
 import { seals } from '../data/seals'
@@ -15,6 +15,27 @@ const storage = (values:Record<string,string> = {}, failKey?:string) => ({
 })
 
 describe('LADMO Codex Save v1', () => {
+  it('round-trips archives through Save V3 without changing its envelope or player data',()=>{
+    const original=source()
+    const goals:TamerGoalsState={version:1,goals:[
+      {id:'archived-attribute',type:'attribute',metric:{system:'seals',attribute:'AT'},baseline:20,desiredGain:300,archived:true},
+      {id:'archived-set',type:'dunit-set',setId:set.id,archived:true},
+    ]}
+    const save=createLadmoSave({data:{...original.data,goals},preferences:original.preferences})
+    expect(save.version).toBe(3);expect(Object.keys(save).sort()).toEqual(Object.keys(original).sort())
+    const parsed=parseLadmoSave(serializeLadmoSave(save));expect(parsed.ok).toBe(true)
+    if(!parsed.ok)throw new Error('Save rejected')
+    expect(parsed.preview.goals).toBe(2)
+    const io=storage();applyLadmoSave(io,parsed.save)
+    expect(readTamerGoals(io).state).toEqual(goals)
+    expect(parsed.save.data.seals).toEqual(original.data.seals)
+    expect(parsed.save.data.dUnitProgress).toEqual(original.data.dUnitProgress)
+    for(const version of [2,3]){
+      const old=parseLadmoSave(JSON.stringify({...save,version,data:{...save.data,goals:{version:1,goals:goals.goals.map(({archived,...goal})=>goal)}}}))
+      expect(old.ok).toBe(true)
+      if(old.ok)expect('goals' in old.save.data && old.save.data.goals.goals.every(goal=>!goal.archived)).toBe(true)
+    }
+  })
   it('exports only versioned player progress, inventory and language', () => {
     const save=source(), raw=JSON.parse(serializeLadmoSave(save))
     expect(raw).toMatchObject({format:saveFormat,version:saveVersion,exportedAt:'2026-10-04T12:00:00.000Z',preferences:{language:'pt'}})
