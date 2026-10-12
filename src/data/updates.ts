@@ -1,5 +1,6 @@
 export interface UpdateEntry { date: string; category: 'new'; changes: string[]; titleKey?: string }
 export const updates: UpdateEntry[] = [
+  { date:'11/10/2026', category:'new', titleKey:'sealPlanningUpdateTitle', changes:['sealPlanningUpdateOne','sealPlanningUpdateTwo','sealPlanningUpdateThree','sealPlanningUpdateFour','sealPlanningUpdateFive','sealPlanningUpdateSix'] },
   { date:'08/10/2026', category:'new', titleKey:'planningV2UpdateTitle', changes:['planningV2UpdateOne','planningV2UpdateTwo','planningV2UpdateThree','planningV2UpdateFour'] },
   { date:'08/10/2026', category:'new', titleKey:'tamerV2UpdateTitle', changes:['tamerV2UpdateOne','tamerV2UpdateTwo'] },
   { date:'07/10/2026', category:'new', titleKey:'navigationUpdateTitle', changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree'] },
@@ -16,6 +17,13 @@ export const updates: UpdateEntry[] = [
 ]
 export const navigationUpdateCopy = {
   pt: {
+    sealPlanningUpdateTitle: 'Planejamento V2 — Metas de Selos e registro de progresso',
+    sealPlanningUpdateOne: 'Acesse a calculadora de Selos diretamente pelas metas cadastradas no Meu Tamer.',
+    sealPlanningUpdateTwo: 'A calculadora considera o atributo desejado e o progresso que ainda falta para concluir a meta.',
+    sealPlanningUpdateThree: 'Use Atualizar meus Selos para registrar ou corrigir a quantidade total de Selos adquiridos.',
+    sealPlanningUpdateFour: 'Registros parciais e sequenciais mantêm a rota de planejamento, facilitando acompanhar as aquisições sem recalcular após cada registro.',
+    sealPlanningUpdateFive: 'Ao realizar um novo cálculo, as recomendações consideram os Selos já registrados e suas quantidades.',
+    sealPlanningUpdateSix: 'O planejamento livre continua disponível, sem alterações no funcionamento.',
     planningV2UpdateTitle: 'Planejamento V2 — Etapa 1: planeje suas metas',
     planningV2UpdateOne: 'Abra uma meta do Meu Tamer no Planejamento ou selecione uma meta cadastrada para acompanhar o alvo, o progresso atual e o que falta. O planejamento livre continua disponível.',
     planningV2UpdateTwo: 'Explore Próximos passos e Outras possibilidades com detalhes expansíveis. Nos Selos, veja o ganho adicional, os Selos, Tickets e abridores necessários; esses abridores não representam seu saldo disponível.',
@@ -27,6 +35,13 @@ export const navigationUpdateCopy = {
     navigationUpdateThree: 'Os atalhos Planejar e Ver conjunto continuam levando ao destino correto e agora participam do histórico de navegação.',
   },
   en: {
+    sealPlanningUpdateTitle: 'Planning V2 — Seal goals and progress tracking',
+    sealPlanningUpdateOne: 'Open the Seal calculator directly from your saved My Tamer goals.',
+    sealPlanningUpdateTwo: 'The calculator uses your chosen attribute and the remaining progress needed to complete your goal.',
+    sealPlanningUpdateThree: 'Use Update my Seals to record or correct the total quantity of Seals you have acquired.',
+    sealPlanningUpdateFour: 'Partial and sequential updates keep your planned route, making it easier to track acquisitions without recalculating after every update.',
+    sealPlanningUpdateFive: 'When you calculate a new route, recommendations take your recorded Seals and quantities into account.',
+    sealPlanningUpdateSix: 'Free planning remains available and works as before.',
     planningV2UpdateTitle: 'Planning V2 — Stage 1: plan your goals',
     planningV2UpdateOne: 'Open a My Tamer goal in Planning or select a saved goal to see its target, current progress and remaining amount. Free planning remains available.',
     planningV2UpdateTwo: 'Explore Next steps and Other possibilities with expandable details. For Seals, see the additional bonus and required Seals, Tickets and Openers; required Openers do not represent your available balance.',
@@ -38,6 +53,13 @@ export const navigationUpdateCopy = {
     navigationUpdateThree: 'Plan and View set still open the correct destination and now participate in navigation history.',
   },
   es: {
+    sealPlanningUpdateTitle: 'Planificación V2 — Metas de Sellos y registro del progreso',
+    sealPlanningUpdateOne: 'Accede a la calculadora de Sellos directamente desde las metas guardadas en Mi Tamer.',
+    sealPlanningUpdateTwo: 'La calculadora considera el atributo elegido y el progreso que falta para completar la meta.',
+    sealPlanningUpdateThree: 'Usa Actualizar mis Sellos para registrar o corregir la cantidad total de Sellos adquiridos.',
+    sealPlanningUpdateFour: 'Los registros parciales y consecutivos mantienen la ruta planificada, facilitando el seguimiento de las adquisiciones sin recalcular después de cada registro.',
+    sealPlanningUpdateFive: 'Al calcular una nueva ruta, las recomendaciones consideran los Sellos registrados y sus cantidades.',
+    sealPlanningUpdateSix: 'La planificación libre sigue disponible y funciona como antes.',
     planningV2UpdateTitle: 'Planificación V2 — Etapa 1: planifica tus metas',
     planningV2UpdateOne: 'Abre una meta de Mi Tamer en Planificación o selecciona una meta guardada para consultar el objetivo, el progreso actual y lo que falta. La planificación libre sigue disponible.',
     planningV2UpdateTwo: 'Explora Próximos pasos y Otras posibilidades con detalles desplegables. Para los Sellos, consulta el bono adicional y los Sellos, Tickets y Openers necesarios; estos Openers no representan tu saldo disponible.',
@@ -49,6 +71,13 @@ export const navigationUpdateCopy = {
     navigationUpdateThree: 'Planificar y Ver conjunto siguen abriendo el destino correcto y ahora forman parte del historial de navegación.',
   },
   ko: {
+    sealPlanningUpdateTitle: '진행 계획 V2 — Seal 목표와 진행도 기록',
+    sealPlanningUpdateOne: '내 테이머에 등록한 목표에서 Seal 계산기를 바로 열 수 있습니다.',
+    sealPlanningUpdateTwo: '계산기는 선택한 능력치와 목표 완료까지 남은 진행도를 반영합니다.',
+    sealPlanningUpdateThree: '내 Seal 업데이트로 획득한 Seal의 총수량을 기록하거나 수정할 수 있습니다.',
+    sealPlanningUpdateFour: '일부 수량을 기록하거나 여러 획득을 연속으로 기록해도 계획한 경로가 유지되어, 매번 다시 계산하지 않고 획득 현황을 확인할 수 있습니다.',
+    sealPlanningUpdateFive: '새 경로를 계산하면 이미 기록한 Seal과 수량이 추천에 반영됩니다.',
+    sealPlanningUpdateSix: '자유 계획은 기존과 동일하게 계속 사용할 수 있습니다.',
     planningV2UpdateTitle: '진행 계획 V2 — 1단계: 목표에 맞춘 계획',
     planningV2UpdateOne: '내 테이머의 목표를 진행 계획에서 열거나 저장된 목표를 선택해 목표 수치, 현재 진행도와 남은 수치를 확인하세요. 자유 계획도 계속 사용할 수 있습니다.',
     planningV2UpdateTwo: '다음 단계와 다른 가능성을 펼쳐 볼 수 있는 상세 정보와 함께 확인하세요. Seal에서는 추가 보너스와 필요한 Seal, 티켓, 오프너를 표시합니다. 필요한 오프너 수는 보유 잔액을 뜻하지 않습니다.',

@@ -4,10 +4,25 @@ import { goalPlannerRegistrationTab } from './components/GoalPlanner'
 import { dUnitConditionCount, dUnitSetCount, supportedLanguageCount } from './components/Home'
 import { dUnitSets } from './data/dUnitAudit'
 import { updates } from './data/updates'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { Updates } from './components/Updates'
 
 const groups = translationGroups
 
 describe('translation coverage', () => {
+  it('marks only the newest changelog entry as new in every language', () => {
+    for (const language of ['pt','en','es','ko'] as const) {
+      const t = Object.assign({}, ...Object.values(groups).map(group=>group[language]))
+      const html = renderToStaticMarkup(createElement(Updates,{t}))
+      expect(html.match(/<small>/g)).toHaveLength(1)
+      const cards = html.split('<article').slice(1)
+      expect(cards).toHaveLength(updates.length)
+      expect(cards[0]).toContain('11/10/2026')
+      expect(cards[0]).toContain(`<small>${t.new}</small>`)
+      expect(cards.slice(1).every(card=>!card.includes('<small>'))).toBe(true)
+    }
+  })
   it.each(Object.entries(groups))('%s has the same keys in PT-BR, EN, ES, and KO', (_, group) => {
     const expected = Object.keys(group.pt).sort()
     expect(Object.keys(group.en).sort()).toEqual(expected)
@@ -46,15 +61,17 @@ describe('translation coverage', () => {
   })
 
   it('keeps the Equipment, D-Unit V1, September 18 D-Unit, and September 16 Buff Deck changelog entries ahead of the previous entries in every language', () => {
-    expect(updates[0]).toMatchObject({date:'08/10/2026',titleKey:'planningV2UpdateTitle',changes:['planningV2UpdateOne','planningV2UpdateTwo','planningV2UpdateThree','planningV2UpdateFour']})
+    expect(updates[0]).toMatchObject({date:'11/10/2026',titleKey:'sealPlanningUpdateTitle',changes:['sealPlanningUpdateOne','sealPlanningUpdateTwo','sealPlanningUpdateThree','sealPlanningUpdateFour','sealPlanningUpdateFive','sealPlanningUpdateSix']})
+    expect(updates.filter(update=>update.titleKey==='sealPlanningUpdateTitle')).toHaveLength(1)
+    expect(updates[1]).toMatchObject({date:'08/10/2026',titleKey:'planningV2UpdateTitle',changes:['planningV2UpdateOne','planningV2UpdateTwo','planningV2UpdateThree','planningV2UpdateFour']})
     expect(updates.filter(update=>update.titleKey==='planningV2UpdateTitle')).toHaveLength(1)
-    expect(updates[1]).toMatchObject({date:'08/10/2026',titleKey:'tamerV2UpdateTitle',changes:['tamerV2UpdateOne','tamerV2UpdateTwo']})
+    expect(updates[2]).toMatchObject({date:'08/10/2026',titleKey:'tamerV2UpdateTitle',changes:['tamerV2UpdateOne','tamerV2UpdateTwo']})
     expect(updates.filter(update=>update.titleKey==='tamerV2UpdateTitle')).toHaveLength(1)
-    expect(updates[2]).toMatchObject({date:'07/10/2026',titleKey:'navigationUpdateTitle',changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree']})
+    expect(updates[3]).toMatchObject({date:'07/10/2026',titleKey:'navigationUpdateTitle',changes:['navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree']})
     expect(updates.filter(update=>update.titleKey==='navigationUpdateTitle')).toHaveLength(1)
-    expect(updates[3]).toMatchObject({date:'07/10/2026',titleKey:'epUpdateTitle',changes:['epUpdateOne','epUpdateTwo','epUpdateThree','epUpdateFour']})
+    expect(updates[4]).toMatchObject({date:'07/10/2026',titleKey:'epUpdateTitle',changes:['epUpdateOne','epUpdateTwo','epUpdateThree','epUpdateFour']})
     expect(updates.filter(update=>update.titleKey==='epUpdateTitle')).toHaveLength(1)
-    const previousUpdates = updates.slice(4)
+    const previousUpdates = updates.slice(5)
     expect(previousUpdates.map(update => update.date)).toEqual(['07/10/2026', '06/10/2026', '05/10/2026', '04/10/2026', '26/09/2026', '18/09/2026', '16/09/2026', '15/09/2026', '13/09/2026'])
     expect(previousUpdates.filter(update=>update.date==='07/10/2026')).toHaveLength(1)
     expect(previousUpdates[0]).toMatchObject({titleKey:'tgUpdateTitle',changes:['tgUpdateOne','tgUpdateTwo','tgUpdateThree','tgUpdateFour','tgUpdateFive','tgUpdateSix']})
@@ -68,6 +85,7 @@ describe('translation coverage', () => {
     expect(previousUpdates[4]).toMatchObject({titleKey:'dunitV1UpdateTitle',changes:['updateEighteen','updateNineteen','updateTwenty','updateTwentyOne']})
     for (const language of ['pt', 'en', 'es', 'ko'] as const) {
       const navigationCopy = translationGroups.navigationUpdateCopy[language]
+      expect(['sealPlanningUpdateTitle','sealPlanningUpdateOne','sealPlanningUpdateTwo','sealPlanningUpdateThree','sealPlanningUpdateFour','sealPlanningUpdateFive','sealPlanningUpdateSix'].every(key=>Boolean(navigationCopy[key as keyof typeof navigationCopy]))).toBe(true)
       expect(['planningV2UpdateTitle','planningV2UpdateOne','planningV2UpdateTwo','planningV2UpdateThree','planningV2UpdateFour'].every(key=>Boolean(navigationCopy[key as keyof typeof navigationCopy]))).toBe(true)
       expect(['navigationUpdateTitle','navigationUpdateOne','navigationUpdateTwo','navigationUpdateThree'].every(key=>Boolean(navigationCopy[key as keyof typeof navigationCopy]))).toBe(true)
       const equipmentCopy = translationGroups.equipmentProgressCopy[language]
